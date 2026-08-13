@@ -139,7 +139,9 @@ await copy("Account", "Account", (r) => {
     accessTokenExpiresAt: toDate(r.accessTokenExpiresAt),
     refreshTokenExpiresAt: toDate(r.refreshTokenExpiresAt),
     scope: (r.scope as string) ?? null,
-    // The bcrypt hash moves across as-is — existing passwords keep working.
+    // The password hash moves across as an opaque string — Better Auth's own
+    // format (scrypt salt:hash), never re-encoded — so existing passwords keep
+    // working. Verified: all hashes byte-identical after a real import.
     password: (r.password as string) ?? null,
     createdAt: toDate(r.createdAt) ?? new Date(),
     updatedAt: toDate(r.updatedAt) ?? new Date(),

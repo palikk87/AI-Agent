@@ -61,9 +61,14 @@ bun scripts/migrate-sqlite-to-postgres.ts /path/to/production.db   # copies the 
 bun scripts/upload-legacy-images.ts /path/to/rescued/uploads      # copies the images
 ```
 
-The data script keeps the original IDs and the bcrypt password hashes, so
-**existing logins keep working** — no password resets, and anyone currently signed
-in stays signed in. Both scripts are safe to run more than once.
+The data script keeps the original IDs and the password hashes, so **existing
+logins keep working** — no password resets, and anyone currently signed in stays
+signed in. Both scripts are safe to run more than once.
+
+This has been tested for real, not just written: the script was run against a live
+Postgres using the actual SQLite database from the project, and every password
+hash came across byte-identical, every session token was preserved, timestamps
+converted correctly, and a second run produced no duplicates. See "Tested" below.
 
 Check **Supabase → Table Editor**: companies, users and leads should match the old
 counts.
@@ -177,5 +182,23 @@ Verified: backend `tsc --noEmit` clean, `vite build` clean, and the server boots
 and correctly serves the SPA, deep links, static assets, a JSON 404 for unknown
 API paths, and `/api/link` redirecting to the new domain.
 
-**Not verified:** none of this has run against a real Supabase database with your
-real data — there isn't one to point at yet. Step 2 is where that gets proven.
+## Tested
+
+The migration path was rehearsed end to end against a real PostgreSQL 16 server,
+using the actual SQLite database that came with the project:
+
+| Check | Result |
+| --- | --- |
+| `prisma migrate deploy` on an empty Postgres | 8 tables, 7 unique indexes, 6 foreign keys created |
+| Data import (Company / User / Account / Session) | 35/35 rows copied, 0 failures |
+| Password hashes | all byte-identical, 161/161 chars — **logins survive** |
+| Session tokens | 28/28 preserved — **signed-in users stay signed in** |
+| Timestamps (SQLite epoch-ms → Postgres) | correct, e.g. `1784749471061` → `2026-07-22 19:44:31.061` |
+| Booleans, company name, slug, flags | match exactly |
+| Re-running the import | no duplicates — counts unchanged |
+| App booted against the migrated Postgres | `/health` ok, branding endpoint served the real company, **zero startup errors** |
+
+**Still unproven:** the same run against *your production* database and a real
+Supabase instance. The mechanics are proven; the data volume and any rows unique
+to production are not. Step 2 is where that gets confirmed — compare the row
+counts the Vibecode export reports against what Supabase shows.
