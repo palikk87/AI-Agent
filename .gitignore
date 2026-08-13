@@ -1,0 +1,30 @@
+# Dependencies & build output
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Secrets — never commit real env files (.env.example templates are tracked)
+.env
+.env.*
+!.env.example
+
+# Local databases (contain real accounts, leads and customer PII)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+
+# Prisma generated client
+**/generated/prisma/
+
+# Logs & caches
+*.log
+logs/
+.cache/
+.eslintcache
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
