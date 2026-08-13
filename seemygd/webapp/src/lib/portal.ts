@@ -28,7 +28,7 @@ export const PORTAL_LOGIN_URL = PORTAL_ORIGIN ? `${PORTAL_ORIGIN}/login` : "/log
 
 /**
  * Are we currently on a customer's custom domain (as opposed to the portal
- * itself, a Vibecode preview host, or localhost)? If so, owner routes should
+ * itself, a platform preview host, or localhost)? If so, owner routes should
  * bounce to the portal.
  */
 export function isCustomDomain(): boolean {
@@ -40,8 +40,9 @@ export function isCustomDomain(): boolean {
 
   const host = window.location.hostname
   const isLocal = host === "localhost" || host === "127.0.0.1"
-  const isVibecode = /\.(vibecode\.run|dev\.vibecode\.run|vibecode\.dev|vibecodeapp\.com)$/.test(host)
-  if (isLocal || isVibecode) return false
+  // Hosting/preview domains are not customer custom domains.
+  const isPlatformHost = /\.(lovable\.app|lovableproject\.com|onrender\.com|up\.railway\.app|fly\.dev|vercel\.app)$/.test(host)
+  if (isLocal || isPlatformHost) return false
 
   return true
 }

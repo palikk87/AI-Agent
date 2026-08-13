@@ -7,15 +7,22 @@ import { db } from "./prisma"
 const STATIC_TRUSTED_ORIGINS = [
   "http://localhost:*",
   "http://127.0.0.1:*",
-  "https://*.dev.vibecode.run",
-  "https://*.vibecodeapp.com",
-  "https://*.vibecode.dev",
-  "https://vibecode.dev",
   "http://localhost:8000",
+  // SeeMyGD production.
+  "https://seemygd.com",
+  "https://www.seemygd.com",
+  // Lovable hosting: published app + editor previews.
+  "https://*.lovable.app",
+  "https://*.lovableproject.com",
   // Known production custom domains for 941 Garage Door.
   "https://941garagedoor.com",
   "https://www.941garagedoor.com",
   "https://visualizer.941garagedoor.com",
+  // Extra origins for whatever host the API ends up on, comma-separated.
+  ...(process.env.EXTRA_TRUSTED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
 ]
 
 // Strip protocol / path / port so "https://941garagedoor.com/" → "941garagedoor.com".
@@ -55,7 +62,7 @@ async function resolveTrustedOrigins(): Promise<string[]> {
 }
 
 export const auth = betterAuth({
-  database: prismaAdapter(db, { provider: "sqlite" }),
+  database: prismaAdapter(db, { provider: "postgresql" }),
   baseURL: process.env.BACKEND_URL || "http://localhost:3000",
   trustedOrigins: () => resolveTrustedOrigins(),
   emailAndPassword: {

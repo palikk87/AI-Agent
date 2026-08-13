@@ -6,9 +6,29 @@ appear in older strings).
 
 Upload a photo of your home and instantly preview real garage door styles from the leading U.S. manufacturers. The AI replaces only the garage door — keeping the rest of the house, sky, driveway, and lighting exactly the same.
 
+> **Migrating off Vibecode? Read [MIGRATION.md](MIGRATION.md).** It's the step-by-step runbook for
+> moving to Supabase Postgres with Better Auth and existing logins intact.
+>
 > **Setup:** copy `backend/.env.example` → `backend/.env` and `webapp/.env.example` → `webapp/.env`,
-> fill in the real values, then run `backend/scripts/start` and `webapp/scripts/build`. Real `.env`
-> files, the SQLite database, and `node_modules` are intentionally not in git.
+> fill in the real values, then `bun install && bunx prisma migrate deploy && bun src/index.ts` in
+> `backend/`. Real `.env` files, the database, and `node_modules` are intentionally not in git.
+
+## Stack
+
+| Layer | Runs on |
+| --- | --- |
+| Code | GitHub |
+| Database | Supabase Postgres (via Prisma) |
+| Auth | Better Auth (email + password) |
+| Storage | Supabase Storage — company logos & hero banners |
+| AI | OpenAI `gpt-image-1` |
+| Payments | Square subscriptions |
+| Email | Resend |
+| Domain | seemygd.com on Lovable, embedding the tool |
+
+The API also serves the built frontend, so the whole tool deploys as a single service
+on one origin — which keeps the frontend's relative `/api/...` calls and same-origin
+auth cookies working exactly as before.
 
 ## Features
 

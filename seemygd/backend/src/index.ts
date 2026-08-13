@@ -1,4 +1,3 @@
-import "@vibecodeapp/proxy"; // DO NOT REMOVE OTHERWISE VIBECODE PROXY WILL NOT WORK
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import "./env";
@@ -24,11 +23,17 @@ void clearCopiedResendCredentials();
 const allowed = [
   /^http:\/\/localhost(:\d+)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
-  /^https:\/\/[a-z0-9-]+\.dev\.vibecode\.run$/,
-  /^https:\/\/[a-z0-9-]+\.vibecode\.run$/,
-  /^https:\/\/[a-z0-9-]+\.vibecodeapp\.com$/,
-  /^https:\/\/[a-z0-9-]+\.vibecode\.dev$/,
-  /^https:\/\/vibecode\.dev$/,
+  // SeeMyGD production (apex + www + any subdomain, e.g. app.seemygd.com).
+  /^https:\/\/([a-z0-9-]+\.)?seemygd\.com$/,
+  // Lovable hosting: published site + editor previews.
+  /^https:\/\/[a-z0-9-]+\.lovable\.app$/,
+  /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/,
+  // Tenant custom domains are allowed dynamically below.
+  ...(process.env.EXTRA_TRUSTED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((o) => new RegExp(`^${o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`)),
 ];
 
 app.use(
@@ -76,42 +81,11 @@ app.get("/api/link", (c) => {
   return c.html(html, 200, { "Cache-Control": "no-store" });
 });
 
-// Root: serve fresh HTML with OG tags so CDN cache doesn't block crawlers
-app.get("/", (c) => {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>See Any Garage Door on Your Own Home — Free AI Visualizer</title>
-  <meta name="description" content="Upload a photo of your home and instantly see how different garage doors look on it. Free AI tool — no account needed, results in seconds."/>
-  <meta property="og:title" content="See Any Garage Door on Your Own Home"/>
-  <meta property="og:description" content="Upload a photo and our free AI tool shows you exactly how a new garage door would look on your house. Try it now — it only takes seconds."/>
-  <meta property="og:type" content="video.other"/>
-  <meta property="og:url" content="https://visualizer.941garagedoor.com"/>
-  <meta property="og:image" content="https://visualizer.941garagedoor.com/og-garage.png"/>
-  <meta property="og:image:width" content="1150"/>
-  <meta property="og:image:height" content="928"/>
-  <meta property="og:video" content="https://visualizer.941garagedoor.com/demo.mp4"/>
-  <meta property="og:video:secure_url" content="https://visualizer.941garagedoor.com/demo.mp4"/>
-  <meta property="og:video:type" content="video/mp4"/>
-  <meta property="og:video:width" content="1200"/>
-  <meta property="og:video:height" content="630"/>
-  <meta name="twitter:card" content="player"/>
-  <meta name="twitter:title" content="See Any Garage Door on Your Own Home"/>
-  <meta name="twitter:description" content="Upload a photo and our free AI shows you a new door on your house in seconds. Free tool — try it now."/>
-  <meta name="twitter:image" content="https://visualizer.941garagedoor.com/og-garage.png"/>
-  <meta name="twitter:player" content="https://visualizer.941garagedoor.com/preview.html"/>
-  <meta name="twitter:player:width" content="1280"/>
-  <meta name="twitter:player:height" content="720"/>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
-</html>`;
-  return c.html(html, 200, { "Cache-Control": "no-store" });
-});
+// NOTE: "/" is served by the SPA handler at the bottom of this file, which
+// returns the built webapp/dist/index.html. That file already carries the full
+// OG/Twitter/JSON-LD tag set, so crawlers get correct metadata without the
+// hand-written duplicate that used to live here (it pointed at the old
+// visualizer.941garagedoor.com URLs and loaded the dev-only /src/main.tsx).
 
 // Serve OG preview image directly (bypasses CDN static file cache)
 app.get("/api/og-image", async (c) => {
@@ -159,6 +133,55 @@ app.route("/api/onboard", onboard);
 app.route("/api/square", squareRouter);
 app.route("/api/admin", adminRouter);
 app.route("/api/repair", repairRouter);
+
+// ---------------------------------------------------------------------------
+// Static frontend
+//
+// On Vibecode the built webapp was served by the platform's static host and
+// /api/* was proxied here. Off-platform we serve both from this one process, so
+// the whole tool is a single deployable at a single origin — which also keeps
+// the frontend's relative "/api/..." calls and same-origin auth cookies working
+// exactly as they do today.
+// ---------------------------------------------------------------------------
+const WEBAPP_DIST = new URL("../../webapp/dist/", import.meta.url);
+
+app.get("*", async (c) => {
+  const pathname = new URL(c.req.url).pathname;
+
+  // Never let the SPA fallback swallow an unmatched API route — that turns a
+  // 404 into a 200 of HTML and makes client-side JSON parsing fail confusingly.
+  if (pathname.startsWith("/api/")) {
+    return c.json({ error: { message: "Not found", code: "NOT_FOUND" } }, 404);
+  }
+
+  // Serve the real asset when one exists (hashed JS/CSS bundles, images,
+  // embed.js, robots.txt, sitemap.xml, demo.mp4, …).
+  if (pathname !== "/" && !pathname.includes("..")) {
+    const asset = Bun.file(new URL(`.${pathname}`, WEBAPP_DIST));
+    if (await asset.exists()) {
+      const immutable = pathname.startsWith("/assets/");
+      return new Response(await asset.arrayBuffer(), {
+        headers: {
+          "Content-Type": asset.type || "application/octet-stream",
+          "Cache-Control": immutable
+            ? "public, max-age=31536000, immutable"
+            : "public, max-age=3600",
+        },
+      });
+    }
+  }
+
+  // Otherwise hand back index.html so client-side routes (/v/:slug, /dashboard,
+  // /admin, /preview, /legal) resolve on a hard refresh or a direct link.
+  const index = Bun.file(new URL("./index.html", WEBAPP_DIST));
+  if (!(await index.exists())) {
+    return c.text(
+      "Frontend not built. Run `bun run build` in webapp/ (see MIGRATION.md).",
+      503
+    );
+  }
+  return c.html(await index.text(), 200, { "Cache-Control": "no-store" });
+});
 
 const port = Number(process.env.PORT) || 3000;
 

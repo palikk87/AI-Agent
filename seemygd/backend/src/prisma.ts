@@ -1,15 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 
-// (schema updated: Company.notificationEmail added)
+// Postgres (Supabase). Connection tuning lives in the DATABASE_URL itself —
+// Supabase's pooled connection string (port 6543) already applies pgbouncer
+// transaction pooling, so no per-connection setup is needed here.
+//
+// (Previously this file issued SQLite PRAGMAs — WAL, foreign_keys, busy_timeout,
+// synchronous. Those are SQLite-only statements and would error on Postgres;
+// Postgres enforces foreign keys and durability by default.)
 const prisma = new PrismaClient();
-
-async function initPragmas() {
-  await prisma.$queryRawUnsafe("PRAGMA journal_mode = WAL;");
-  await prisma.$queryRawUnsafe("PRAGMA foreign_keys = ON;");
-  await prisma.$queryRawUnsafe("PRAGMA busy_timeout = 10000;");
-  await prisma.$queryRawUnsafe("PRAGMA synchronous = NORMAL;");
-}
-initPragmas();
 
 export { prisma };
 

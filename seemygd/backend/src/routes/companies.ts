@@ -6,6 +6,7 @@ import { z } from "zod"
 import { VanitySlugSchema, RESERVED_SLUGS } from "../types"
 import { verifyPreview } from "../preview-token"
 import { scrapeBrand } from "./onboard"
+import { saveBrandingImage, contentTypeForExt } from "../storage"
 
 const companies = new Hono()
 
@@ -374,7 +375,6 @@ companies.post("/me/upload-image", async (c) => {
     return c.json({ error: { message: "File must be an image", code: "BAD_REQUEST" } }, 400)
   }
 
-  const uploadsDir = process.cwd() + "/uploads/"
   let ext = file.name.includes(".") ? file.name.split(".").pop()! : "bin"
   let bytes: Buffer<ArrayBufferLike> = Buffer.from(await file.arrayBuffer())
 
@@ -390,9 +390,8 @@ companies.post("/me/upload-image", async (c) => {
   }
 
   const filename = `${user.companyId}-${type}-${Date.now()}.${ext}`
-  await Bun.write(`${uploadsDir}${filename}`, bytes)
+  const urlPath = await saveBrandingImage(filename, bytes, contentTypeForExt(ext))
 
-  const urlPath = `/uploads/${filename}`
   const updateField = type === "logo" ? { logoUrl: urlPath } : { heroImageUrl: urlPath }
   await db.company.update({ where: { id: user.companyId }, data: updateField })
 

@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
-    "studio": "cloud-studio --port 3001 --hostname 0.0.0.0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "prisma generate",
+    "migrate": "prisma migrate deploy"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
@@ -20,9 +21,7 @@
     "@hono/zod-validator": "^0.8.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "@prisma/client": "6",
-    "@vibecodeapp/backend-sdk": "^1.0.1",
-    "@vibecodeapp/cloud-studio": "^0.2.4",
-    "@vibecodeapp/proxy": "^2.0.3",
+    "@supabase/supabase-js": "^2.47.10",
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.6.13",
     "hono": "4.6.0",
