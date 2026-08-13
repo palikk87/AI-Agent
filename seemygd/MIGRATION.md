@@ -1,173 +1,181 @@
 # Moving SeeMyGD off Vibecode
 
-The app itself is unchanged — same visualizer, same repair estimator, same
-dashboard, same Better Auth logins. Only the things Vibecode used to provide
-underneath it have been swapped out:
+The app is unchanged — same visualizer, same repair estimator, same dashboard,
+same logins. Only the things Vibecode provided *underneath* it have been replaced.
 
 | Piece | Before (Vibecode) | After |
 | --- | --- | --- |
 | Code | Vibecode workspace | GitHub (`palikk87/AI-Agent`, `seemygd/`) |
 | Database | SQLite file on the container | **Supabase** Postgres |
-| Logins | Better Auth on SQLite | **Better Auth**, unchanged, on Supabase Postgres |
-| Logo/hero uploads | local `uploads/` folder | Supabase Storage (old files still served) |
-| OpenAI calls | Vibecode's built-in proxy | your own OpenAI key |
-| Frontend hosting | Vibecode static host | served by the API itself — one URL |
-| Domain | — | seemygd.com stays on Lovable, embeds the tool |
+| Logins | Better Auth on SQLite | **Better Auth**, unchanged, on Supabase |
+| Logo/hero uploads | local `uploads/` folder | Supabase Storage |
+| Website hosting | Vibecode static host | the app serves itself — one service |
+| Server | Vibecode container | **Render** |
+| Address | `newdoor.vibecode.run` | **www.seemygd.com** |
+| Backups | Vibecode disk snapshots | Supabase automatic backups |
 
-Nothing about how the app behaves changes. Owners keep their passwords, their
-branding, their pricing and their leads.
-
----
-
-## What you need
-
-Three accounts: **GitHub** (done), **Supabase** (free tier is fine to start), and
-somewhere to run the API — Render, Railway or Fly all work; any of them can run
-a Bun app from this repo. Everything else you already have (OpenAI, Square,
-Resend).
+**Unchanged, and never Vibecode's to begin with:** OpenAI (the app has always
+called `api.openai.com` directly with your own `sk-proj-…` key), Square, Resend.
 
 ---
 
-## Step 1 — Get your data out of Vibecode
+## ⚠️ Do this first: rescue the database
 
-In the Vibecode project, download the production database file. It lives at
-`/data/production.db`. That single file holds every account, company, pricing
-setting and lead.
+Everything else on this page can be redone. This cannot.
 
-Keep it somewhere safe on your computer — everything else in this guide can be
-redone, but this file can't be.
+Every owner account, password, company branding, repair price and lead lives in
+**one file** on the Vibecode container: `/data/production.db`. It was not in the
+project zip. **If Vibecode locks before you export it, those users are gone.**
 
-> The copy of `dev.db` that came in the project zip was **not** committed to
-> GitHub. It contained real accounts and password hashes, and this repo is
-> public.
+Using the Vibecode extension / file browser, download:
 
-## Step 2 — Create the Supabase database
+1. `/data/production.db` — keep two copies, in two places
+2. `backend/uploads/` — the live logo and hero images
+3. The project's `.env` — above all, the current `BETTER_AUTH_SECRET`
 
-1. supabase.com → **New project**. Pick a region near your customers and save
-   the database password it generates.
-2. Once it finishes provisioning: **Project Settings → Database → Connection
-   string**. Copy two of them:
-   - **Transaction pooler** (port `6543`) → this is `DATABASE_URL`
-   - **Direct connection** (port `5432`) → this is `DIRECT_URL`
+Do not start anything below until that file is safely on your computer.
 
-## Step 3 — Create the storage bucket
+---
 
-**Storage → New bucket**, name it `branding`, and tick **Public bucket**. This is
-where new logo and hero uploads go. (Existing images already in the repo under
-`backend/uploads/` keep being served by the app, so current branding does not
-break.)
+## Step 1 — Supabase
 
-Then **Project Settings → API** and copy the **Project URL** and the
-**`service_role` key**.
+1. supabase.com → **New project**. Save the database password it generates.
+2. **Project Settings → Database → Connection string**, copy two:
+   - **Transaction pooler** (port `6543`) → `DATABASE_URL`
+   - **Direct connection** (port `5432`) → `DIRECT_URL`
+3. **Storage → New bucket**, name it `branding`, tick **Public bucket**.
+4. **Project Settings → API**, copy the **Project URL** and the **`service_role` key**.
 
-## Step 4 — Fill in the environment variables
+## Step 2 — Move the data across
 
-Copy `backend/.env.example` to `backend/.env` and fill it in. Most values come
-straight from your old Vibecode `.env`.
+Copy `backend/.env.example` to `backend/.env` and fill it in, mostly from the old
+Vibecode `.env`. **Reuse `BETTER_AUTH_SECRET` exactly** — a new value logs every
+owner out.
 
-Two that matter more than the rest:
-
-- **`BETTER_AUTH_SECRET` — reuse the exact value from Vibecode.** Change it and
-  every owner is logged out and has to sign in again.
-- **`OPENAI_API_KEY` — must now be a real OpenAI key.** Vibecode was proxying
-  these calls for you; that proxy is gone, so the door-swap feature needs your
-  own key with `gpt-image-1` access.
-
-## Step 5 — Create the tables, then move the data
-
-From the `backend/` folder:
+Then, from `backend/`:
 
 ```bash
 bun install
-bunx prisma migrate deploy     # creates the tables in Supabase
-bun scripts/migrate-sqlite-to-postgres.ts /path/to/production.db
+bunx prisma migrate deploy                                    # creates the tables
+bun scripts/migrate-sqlite-to-postgres.ts /path/to/production.db   # copies the data
+bun scripts/upload-legacy-images.ts /path/to/rescued/uploads      # copies the images
 ```
 
-The second command copies every row across, keeping the same IDs. Password
-hashes come with it, so **existing logins keep working** — no password resets.
-It's safe to run more than once if something goes wrong partway.
+The data script keeps the original IDs and the bcrypt password hashes, so
+**existing logins keep working** — no password resets, and anyone currently signed
+in stays signed in. Both scripts are safe to run more than once.
 
-Check **Supabase → Table Editor** afterwards: you should see your companies,
-users and leads.
+Check **Supabase → Table Editor**: companies, users and leads should match the old
+counts.
 
-## Step 6 — Deploy
+## Step 3 — Deploy to Render
 
-The API now serves the built frontend too, so the whole tool is one service at
-one URL.
+The repo has `render.yaml` and a `Dockerfile`, so this is mostly clicking.
 
-Build command:
+1. Render → **New → Blueprint** → pick this repo → set root directory `seemygd`.
+2. Render prompts for each secret. Paste them from your `.env`.
+3. Deploy, then open the temporary `*.onrender.com` URL and check it works
+   **before** touching DNS.
 
-```bash
-cd webapp && bun install && bun run vite build --outDir dist && cd ../backend && bun install && bunx prisma generate
-```
+The image builds the frontend and serves it from the same service as the API, so
+there is one URL for everything.
 
-Start command:
+## Step 4 — Point the domain
 
-```bash
-cd backend && bun src/index.ts
-```
+> **Note:** seemygd.com currently shows the Lovable landing page. Pointing it here
+> replaces that with the app's own landing page, which already has the SeeMyGD
+> branding, features and footer, plus the working tool at `/tool`. If you want to
+> keep the Lovable page, put it on a subdomain instead.
 
-Paste every variable from your `.env` into the host's environment settings, and
-set `BACKEND_URL` / `FRONTEND_URL` to the URL the host gives you.
+At your registrar, point `seemygd.com` and `www` at Render (Render shows the exact
+records). Wait for the certificate to go green.
 
-## Step 7 — Point the domain and the embed at it
+## Step 5 — Cut over the embeds — the part that protects your users
 
-seemygd.com stays where it is on Lovable. The Lovable site embeds the tool, so
-the only change is the URL in the embed snippet — swap the old Vibecode host for
-the new one:
+**Do this while Vibecode is still running**, so both work at once.
+
+Every widget already on a customer's website points at
+`https://newdoor.vibecode.run/embed.js`. When Vibecode shuts off, those widgets
+break — even though the app is running fine at the new address. `vibecode.run`
+isn't yours, so it can't be redirected.
+
+For each customer site (you know of 2 — confirm against the tenant list in the
+database), replace the snippet with:
 
 ```html
-<script src="https://YOUR-NEW-HOST/embed.js" data-slug="your-company" defer></script>
+<script src="https://www.seemygd.com/embed.js" data-slug="their-slug" defer></script>
 ```
 
-Owners' own embed snippets come from the dashboard, which builds them from
-whatever host the app is running on, so those update themselves.
+If a customer is on the Growth tier with their own domain (e.g.
+`visualizer.941garagedoor.com`), re-point that CNAME at Render too.
 
-If you'd rather the tool live at something like `app.seemygd.com`, point that
-subdomain at the host with a CNAME and set `EXTRA_TRUSTED_ORIGINS` to
-`https://app.seemygd.com`.
+Owners' own snippets in the dashboard rebuild themselves from whatever host the
+app runs on, so those are automatically correct from now on.
 
-## Step 8 — Check it end to end
+## Step 6 — Square
 
-1. Log in with your existing email and password.
-2. Upload a photo and generate a door — confirms the OpenAI key works.
-3. Change a logo in the dashboard — confirms Supabase Storage works.
-4. Submit a repair estimate — confirms leads and Resend email alerts work.
-5. Load the embed on the Lovable site.
+Point the webhook at `https://www.seemygd.com/api/square/webhook`. The signature
+check compares against `BACKEND_URL`, so the two must match.
 
-## Step 9 — Turn Vibecode off
+Worth knowing: Square is currently in **sandbox** mode
+(`SQUARE_ENVIRONMENT=sandbox`) and `SQUARE_WEBHOOK_SIGNATURE_KEY` is empty, so
+signatures aren't being verified today. Change both when you're ready to take real
+subscription payments.
 
-Only after the checks above pass. Keep the `production.db` backup regardless.
+## Step 7 — Check everything, then shut Vibecode off
+
+1. Log in with an **existing** email and password — proves the data moved.
+2. Upload a photo and generate a door — proves the OpenAI key.
+3. Change a logo in the dashboard — proves Supabase Storage.
+4. Open a company's `/v/their-slug` page — proves branding.
+5. Submit a repair estimate — proves leads and email alerts.
+6. Load a real customer page with the new embed.
+
+Only when all six pass: turn Vibecode off. Keep the `production.db` backup forever.
 
 ---
 
 ## What changed in the code
 
-Everything below is the complete list — no application logic was touched.
+No application logic was touched. The complete list:
 
-- `prisma/schema.prisma` — provider `sqlite` → `postgresql`, added `directUrl`
-- `src/prisma.ts` — dropped the SQLite `PRAGMA` statements (they error on Postgres)
-- `src/auth.ts` — Better Auth adapter provider → `postgresql`; trusted origins now
-  cover seemygd.com / Lovable / `EXTRA_TRUSTED_ORIGINS` instead of vibecode.run
-- `src/index.ts` — removed the `@vibecodeapp/proxy` import; CORS list updated;
-  added static serving of `webapp/dist` with SPA fallback; removed a hand-written
-  root HTML block that pointed at old 941garagedoor URLs and loaded a dev-only script
-- `src/storage.ts` (new) — Supabase Storage for branding uploads, local-disk fallback
-- `src/routes/companies.ts` — upload handler writes through `storage.ts`
-- `scripts/start` — Supabase-aware; dropped the SQLite backup and the Vibecode API call
-- `scripts/env.sh` — deleted (it force-set `DATABASE_URL` to a SQLite path)
-- `scripts/migrate-sqlite-to-postgres.ts` (new) — the data migration
+**Database (SQLite → Supabase Postgres)**
+- `prisma/schema.prisma` — provider `postgresql`, added `directUrl`
+- `prisma/migrations/00000000000000_init/` — the initial migration (8 tables,
+  7 unique indexes, 6 foreign keys). Without this, `prisma migrate deploy` would
+  silently create nothing.
+- `src/prisma.ts` — dropped the SQLite `PRAGMA` statements, which error on Postgres
+- `src/auth.ts` — Better Auth adapter provider → `postgresql`
+
+**Cutting Vibecode out**
+- `src/index.ts` — removed the `@vibecodeapp/proxy` import; CORS list updated
 - `package.json` (both) — removed `@vibecodeapp/*`, added `@supabase/supabase-js`
 - `webapp/vite.config.ts` — removed the Vibecode dev plugin
 - `webapp/src/lib/portal.ts` — platform-host check no longer looks for vibecode domains
+- `scripts/start` — Supabase-aware; no SQLite backup, no Vibecode API call
+- `scripts/env.sh` — deleted; it force-set `DATABASE_URL` to a SQLite path and
+  would have overridden Supabase in production
 
-Verified: backend `tsc --noEmit` passes, `vite build` passes, and the server boots
-and serves the app, the API, static assets and SPA routes.
+**Replacing what Vibecode hosted**
+- `Dockerfile`, `render.yaml` — single-service deploy
+- `src/index.ts` — serves `webapp/dist` with SPA fallback; unmatched `/api/*`
+  returns a JSON 404 rather than HTML
+- `src/storage.ts` (new) + `src/routes/companies.ts` — uploads to Supabase Storage,
+  local-disk fallback for development
 
-## Still worth doing
+**No longer pointing at hosts we don't control**
+- `src/index.ts` — `/api/link` redirect and its OG tags now build from `BACKEND_URL`
+  instead of the hardcoded `visualizer.941garagedoor.com`
+- `webapp/index.html`, `public/sitemap.xml`, `public/robots.txt` — canonical, OG,
+  Twitter and sitemap URLs → `www.seemygd.com` (11 replacements)
 
-Not required to migrate, but outstanding:
+**Migration tooling (new)**
+- `scripts/migrate-sqlite-to-postgres.ts` — the data move
+- `scripts/upload-legacy-images.ts` — the image move + DB URL rewrite
 
-- `webapp/index.html`, `public/sitemap.xml` and `public/robots.txt` still declare
-  `https://visualizer.941garagedoor.com/` as the canonical URL. Search engines and
-  social previews will credit the old domain until those are updated to the new host.
+Verified: backend `tsc --noEmit` clean, `vite build` clean, and the server boots
+and correctly serves the SPA, deep links, static assets, a JSON 404 for unknown
+API paths, and `/api/link` redirecting to the new domain.
+
+**Not verified:** none of this has run against a real Supabase database with your
+real data — there isn't one to point at yet. Step 2 is where that gets proven.

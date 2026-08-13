@@ -1,0 +1,84 @@
+# Render blueprint for SeeMyGD.
+#
+# In Render: New → Blueprint → pick this repo. Set the blueprint's root
+# directory to `seemygd`. Secrets are marked sync:false, so Render prompts for
+# them once instead of storing them in git.
+#
+# Copy the values from the old Vibecode .env. Two of them matter more than the rest:
+#   BETTER_AUTH_SECRET — reuse the EXISTING value, or every owner is logged out.
+#   DATABASE_URL       — Supabase POOLED string (port 6543), not the direct one.
+
+services:
+  - type: web
+    name: seemygd
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter # 512MB — sharp + gpt-image-1 calls need more than free tier
+    healthCheckPath: /health
+    autoDeploy: true
+
+    domains:
+      - www.seemygd.com
+      - seemygd.com
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+
+      # Public URL of this service. Square webhook signatures are verified
+      # against this exact value, so it must match what Square is configured with.
+      - key: BACKEND_URL
+        value: https://www.seemygd.com
+      - key: FRONTEND_URL
+        value: https://www.seemygd.com
+      - key: EXTRA_TRUSTED_ORIGINS
+        sync: false
+
+      # --- Supabase ---
+      # DATABASE_URL: Transaction pooler, port 6543 (runtime queries)
+      # DIRECT_URL:   Direct connection, port 5432 (prisma migrate deploy)
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BRANDING_BUCKET
+        value: branding
+
+      # --- Better Auth --- reuse the existing secret, do not generate a new one
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_SECRET
+        sync: false
+      - key: PREVIEW_SIGNING_SECRET
+        sync: false
+
+      # --- OpenAI (gpt-image-1 door swap + hero re-render) ---
+      - key: OPENAI_API_KEY
+        sync: false
+
+      # --- Email (Resend) ---
+      - key: RESEND_API_KEY
+        sync: false
+      - key: LEAD_NOTIFICATION_EMAIL
+        sync: false
+
+      # --- Square subscriptions ---
+      - key: SQUARE_ENVIRONMENT
+        sync: false
+      - key: SQUARE_ACCESS_TOKEN
+        sync: false
+      - key: SQUARE_APPLICATION_ID
+        sync: false
+      - key: SQUARE_LOCATION_ID
+        sync: false
+      - key: SQUARE_WEBHOOK_SIGNATURE_KEY
+        sync: false

@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://visualizer.941garagedoor.com/sitemap.xml
+Sitemap: https://www.seemygd.com/sitemap.xml

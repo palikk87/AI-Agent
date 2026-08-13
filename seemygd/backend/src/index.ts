@@ -50,13 +50,18 @@ app.use("*", logger());
 // Health check endpoint
 app.get("/health", (c) => c.json({ status: "ok" }));
 
+// Public origin of this deployment. Everything user-facing (share links, OG
+// tags) is built from this, so moving hosts is a config change rather than a
+// code change — and nothing keeps pointing at a host we no longer control.
+const PUBLIC_URL = (process.env.BACKEND_URL || "https://www.seemygd.com").replace(/\/$/, "");
+
 // /api/link — bypass CDN cache: Facebook scrapes this, browsers redirect to homepage
-// Share https://visualizer.941garagedoor.com/api/link on Facebook
+// Share <PUBLIC_URL>/api/link on Facebook
 app.get("/api/link", (c) => {
   const ua = c.req.header("user-agent") ?? "";
   const isCrawler = /facebookexternalhit|Facebot|twitterbot|LinkedInBot|WhatsApp|Slackbot|TelegramBot|bot|crawler|spider/i.test(ua);
   if (!isCrawler) {
-    return c.redirect("https://visualizer.941garagedoor.com", 302);
+    return c.redirect(PUBLIC_URL, 302);
   }
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -66,12 +71,12 @@ app.get("/api/link", (c) => {
   <meta property="og:title" content="See Any Garage Door on Your Own Home"/>
   <meta property="og:description" content="Upload a photo and our free AI tool shows you exactly how a new garage door would look on your house. Try it now — it only takes seconds."/>
   <meta property="og:type" content="video.other"/>
-  <meta property="og:url" content="https://visualizer.941garagedoor.com"/>
-  <meta property="og:image" content="https://visualizer.941garagedoor.com/api/og-image"/>
+  <meta property="og:url" content="${PUBLIC_URL}"/>
+  <meta property="og:image" content="${PUBLIC_URL}/api/og-image"/>
   <meta property="og:image:width" content="1150"/>
   <meta property="og:image:height" content="928"/>
-  <meta property="og:video" content="https://visualizer.941garagedoor.com/demo.mp4"/>
-  <meta property="og:video:secure_url" content="https://visualizer.941garagedoor.com/demo.mp4"/>
+  <meta property="og:video" content="${PUBLIC_URL}/demo.mp4"/>
+  <meta property="og:video:secure_url" content="${PUBLIC_URL}/demo.mp4"/>
   <meta property="og:video:type" content="video/mp4"/>
   <meta property="og:video:width" content="1200"/>
   <meta property="og:video:height" content="630"/>
