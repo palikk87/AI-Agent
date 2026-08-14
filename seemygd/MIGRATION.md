@@ -27,13 +27,26 @@ Every owner account, password, company branding, repair price and lead lives in
 **one file** on the Vibecode container: `/data/production.db`. It was not in the
 project zip. **If Vibecode locks before you export it, those users are gone.**
 
-Using the Vibecode extension / file browser, download:
+**Do not use the workspace's Database tab** — that is the dev database
+(`file:./dev.db`, 3 users). Production has no `DATABASE_URL` set at all, so the
+old start script derived `file:/data/production.db` at boot. The go/no-go test is
+the row count: production is **Company 5, User 7**; dev is 1 and 3.
 
-1. `/data/production.db` — keep two copies, in two places
-2. `backend/uploads/` — the live logo and hero images
-3. The project's `.env` — above all, the current `BETTER_AUTH_SECRET`
+Two ways to get it, in order of preference:
 
-Do not start anything below until that file is safely on your computer.
+1. **SSH** (Deployment → Settings → SSH access) — gets the real SQLite file plus
+   a definitive answer on the uploaded images. Commands are in the chat history;
+   export with `sqlite3 -readonly … ".backup"`, or on a box without the `sqlite3`
+   binary, `bun`'s `Database(..., {readonly:true}).serialize()`. Both were tested
+   and both preserve hashes exactly.
+2. **Studio REST API** (`/api/tables/*`) — a ~27 KB JSON dump of all 8 tables.
+   Works without a shell, but yields JSON rather than a `.db`.
+
+Also grab, before anything else: **Deployment → Environment → Backend →
+`BETTER_AUTH_SECRET`** (eye icon). One click, and it is the single value that
+cannot be reconstructed from anything else.
+
+Do not start anything below until that data is safely on your computer.
 
 ---
 
@@ -56,14 +69,17 @@ Then, from `backend/`:
 
 ```bash
 bun install
-bunx prisma migrate deploy                                     # creates the tables
-bun scripts/import-json-export.ts /path/to/seemygd-production-export.json
+bunx prisma migrate deploy    # creates the tables
 ```
 
-**Use the JSON importer, not the SQLite one.** The Vibecode production database
-is not reachable as a file — the deployment's studio exposes REST only
-(`/api/tables/*`), so the export is JSON. `scripts/migrate-sqlite-to-postgres.ts`
-remains for the case where an actual `.db` file turns up.
+**Then pick the importer that matches what you exported:**
+
+| You have | Run |
+| --- | --- |
+| `production.db` (via SSH) | `bun scripts/migrate-sqlite-to-postgres.ts /path/to/production.db` |
+| `…-export.json` (via studio REST) | `bun scripts/import-json-export.ts /path/to/export.json` |
+
+Prefer the `.db` route — that script is the more heavily tested of the two.
 
 The importer checks what it loaded against the row counts the studio reported and
 refuses to declare success on a mismatch:
@@ -91,12 +107,9 @@ converted correctly, and a second run produced no duplicates. See "Tested" below
 Check **Supabase → Table Editor**: companies, users and leads should match the old
 counts.
 
-## The uploaded images are already gone
+## The uploaded images: broken on Vibecode, status on disk unknown
 
-Not caused by the migration — the Vibecode persistent disk did not survive. Three
-branding files are referenced in the production database and all three now return
-the app shell instead of an image, on both `newdoor.vibecode.run` and
-`visualizer.941garagedoor.com`:
+Three branding files are referenced in the production database:
 
 ```
 cmrwhk9sa0000pn550sm337gd-logo-1784749151109.jpg
@@ -104,13 +117,38 @@ cmrwhk9sa0000pn550sm337gd-hero-1784749219382.jpg
 cmrwhzmyx0000pn559ojbkz0m-logo-1784750038515.jpg
 ```
 
-So **A Rated Garage Doors** and **941 Garage Door** will need their logo and hero
-re-uploaded after cutover. The other three companies use externally hosted images
-and are unaffected. Worth telling those two now, so it doesn't look like the move
-broke something.
+Over HTTP all three return a 3869-byte HTML page instead of an image. It is
+tempting to conclude the files are gone. **They may not be** — the evidence says
+something different:
 
-Because there are no files to move, `scripts/upload-legacy-images.ts` has nothing
-to do for production. It stays for the local `backend/uploads/` copies in this repo.
+| Path | Status | Type | `Server` header |
+| --- | --- | --- | --- |
+| `/api/garage/catalog` | 200 | json | *(none — Hono)* |
+| `/api/nope` | 404 | text | *(none — Hono)* |
+| `/uploads/<real file>` | 200 | html, 3869 B | **Caddy** |
+| `/uploads/NOPE-12345.jpg` | 200 | html, 3869 B | **Caddy** |
+| `/totally-fake-page` | 200 | html, 3869 B | **Caddy** |
+
+A real upload and a nonsense filename return byte-identical responses, both
+stamped by Caddy, while backend routes carry no server header. Vibecode's proxy
+sends `/api/*` to Hono and everything else to the static host, which falls back to
+the SPA shell. `/uploads/*` therefore **never reaches** the backend's
+`/uploads/:filename` handler, so HTTP says nothing about whether the files exist.
+
+Two consequences:
+
+1. **Those images have been broken in production all along**, for proxy reasons —
+   not because of this migration.
+2. **This deployment fixes that**, because the API serves everything itself and
+   `/uploads/:filename` (index.ts line 110) is registered ahead of the SPA
+   catch-all (line 153). Hono matches in registration order, so the route wins —
+   *provided the files are recovered*.
+
+Only `ls` on the production server settles whether they're on disk. If they are,
+copy them into the `branding` bucket with `scripts/upload-legacy-images.ts`. If
+they aren't, **A Rated Garage Doors** and **941 Garage Door** need their logo and
+hero re-uploaded after cutover. The other three companies use externally hosted
+images and are unaffected either way.
 
 ## Step 3 — Deploy to Render
 
@@ -136,6 +174,8 @@ records). Wait for the certificate to go green.
 
 ## Step 5 — Cut over the embeds — the part that protects your users
 
+> Per-tenant snippets, links and tick-boxes are in **[CUTOVER.md](CUTOVER.md)**.
+
 **Do this while Vibecode is still running**, so both work at once.
 
 Every widget already on a customer's website points at
@@ -143,15 +183,15 @@ Every widget already on a customer's website points at
 break — even though the app is running fine at the new address. `vibecode.run`
 isn't yours, so it can't be redirected.
 
-For each customer site (you know of 2 — confirm against the tenant list in the
-database), replace the snippet with:
+There are five tenants and **none has a vanity slug**, so each embed keys off the
+raw company id. The per-tenant snippets are in [CUTOVER.md](CUTOVER.md); the shape is:
 
 ```html
-<script src="https://www.seemygd.com/embed.js" data-slug="their-slug" defer></script>
+<script src="https://www.seemygd.com/embed.js" data-slug="<company-id>" defer></script>
 ```
 
-If a customer is on the Growth tier with their own domain (e.g.
-`visualizer.941garagedoor.com`), re-point that CNAME at Render too.
+No tenant has a custom domain, so there is no tenant DNS to re-point. The only
+custom hostname in play is the deployment's own `visualizer.941garagedoor.com`.
 
 Owners' own snippets in the dashboard rebuild themselves from whatever host the
 app runs on, so those are automatically correct from now on.
