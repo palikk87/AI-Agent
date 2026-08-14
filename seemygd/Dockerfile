@@ -14,6 +14,21 @@ COPY webapp/package.json webapp/bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY webapp/ ./
+
+# The frontend imports the shared Zod schemas straight out of the backend
+# ("../../../backend/src/types" — the single-source-of-truth contract), so the
+# backend source must be present at /app/backend for the bundle to resolve.
+# Without this the build dies with "Could not resolve ../../../backend/src/types".
+#
+# types.ts itself imports zod, and node resolution for that lookup starts at
+# /app/backend — so the backend's own dependencies must be installed there too,
+# from the same lockfile, or the build dies with "Rollup failed to resolve zod".
+# This reproduces the local layout (webapp/ and backend/ side by side, each with
+# its own node_modules) that the import paths were written against.
+COPY backend/package.json backend/bun.lock /app/backend/
+RUN cd /app/backend && bun install --frozen-lockfile
+COPY backend/src /app/backend/src
+
 RUN bun run vite build --outDir dist
 
 # ---------- stage 2: runtime ----------

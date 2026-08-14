@@ -56,10 +56,28 @@ Then, from `backend/`:
 
 ```bash
 bun install
-bunx prisma migrate deploy                                    # creates the tables
-bun scripts/migrate-sqlite-to-postgres.ts /path/to/production.db   # copies the data
-bun scripts/upload-legacy-images.ts /path/to/rescued/uploads      # copies the images
+bunx prisma migrate deploy                                     # creates the tables
+bun scripts/import-json-export.ts /path/to/seemygd-production-export.json
 ```
+
+**Use the JSON importer, not the SQLite one.** The Vibecode production database
+is not reachable as a file — the deployment's studio exposes REST only
+(`/api/tables/*`), so the export is JSON. `scripts/migrate-sqlite-to-postgres.ts`
+remains for the case where an actual `.db` file turns up.
+
+The importer checks what it loaded against the row counts the studio reported and
+refuses to declare success on a mismatch:
+
+| Table | Production rows |
+| --- | --- |
+| Company | 5 |
+| User | 7 |
+| Account | 7 |
+| Session | 35 |
+| Lead | 1 |
+| RepairSettings | 3 |
+| RepairPrice | 22 |
+| Verification | 0 |
 
 The data script keeps the original IDs and the password hashes, so **existing
 logins keep working** — no password resets, and anyone currently signed in stays
@@ -72,6 +90,27 @@ converted correctly, and a second run produced no duplicates. See "Tested" below
 
 Check **Supabase → Table Editor**: companies, users and leads should match the old
 counts.
+
+## The uploaded images are already gone
+
+Not caused by the migration — the Vibecode persistent disk did not survive. Three
+branding files are referenced in the production database and all three now return
+the app shell instead of an image, on both `newdoor.vibecode.run` and
+`visualizer.941garagedoor.com`:
+
+```
+cmrwhk9sa0000pn550sm337gd-logo-1784749151109.jpg
+cmrwhk9sa0000pn550sm337gd-hero-1784749219382.jpg
+cmrwhzmyx0000pn559ojbkz0m-logo-1784750038515.jpg
+```
+
+So **A Rated Garage Doors** and **941 Garage Door** will need their logo and hero
+re-uploaded after cutover. The other three companies use externally hosted images
+and are unaffected. Worth telling those two now, so it doesn't look like the move
+broke something.
+
+Because there are no files to move, `scripts/upload-legacy-images.ts` has nothing
+to do for production. It stays for the local `backend/uploads/` copies in this repo.
 
 ## Step 3 — Deploy to Render
 
@@ -182,6 +221,16 @@ Verified: backend `tsc --noEmit` clean, `vite build` clean, and the server boots
 and correctly serves the SPA, deep links, static assets, a JSON 404 for unknown
 API paths, and `/api/link` redirecting to the new domain.
 
+## If the deploy crash-loops
+
+**Symptom:** the service restarts over and over, log ends with
+`BetterAuthError: You are using the default secret.`
+
+**Cause:** `BETTER_AUTH_SECRET` is not set. Better Auth refuses to run in
+production without it. Set it — to the *existing* value from Vibecode — and
+redeploy. This is the single most likely deploy failure; it's been reproduced
+here deliberately.
+
 ## Tested
 
 The migration path was rehearsed end to end against a real PostgreSQL 16 server,
@@ -198,7 +247,29 @@ using the actual SQLite database that came with the project:
 | Re-running the import | no duplicates — counts unchanged |
 | App booted against the migrated Postgres | `/health` ok, branding endpoint served the real company, **zero startup errors** |
 
-**Still unproven:** the same run against *your production* database and a real
-Supabase instance. The mechanics are proven; the data volume and any rows unique
-to production are not. Step 2 is where that gets confirmed — compare the row
-counts the Vibecode export reports against what Supabase shows.
+The **Docker image and JSON import path** were then proven the same way:
+
+| Check | Result |
+| --- | --- |
+| `docker build` of the production image | succeeds, 1.06GB |
+| JSON importer against real Postgres | all rows copied, hashes byte-identical, 28/28 session tokens kept |
+| ISO-date and epoch-ms handling in JSON | both convert correctly |
+| Row-count guard fed the wrong data | correctly refused: `Import did NOT match expectations` |
+| Container boots, runs migrations, serves | `/health`, `/`, `/dashboard`, `/embed.js` all correct, JSON 404 for unknown API, real company branding served, **zero errors** |
+| Container without `BETTER_AUTH_SECRET` | crash-loops with a clear error (see above) |
+
+Two real deploy-blocking bugs were found and fixed this way, both of which would
+have failed identically on Render:
+
+1. The frontend imports shared Zod schemas from `backend/src/types`, which the
+   build stage did not copy — `Could not resolve ../../../backend/src/types`.
+2. That file imports `zod`, resolved from `/app/backend`, so the backend's
+   dependencies had to be installed in the build stage too.
+
+A `.dockerignore` was also added: the build was shipping 144MB of context,
+dragging host `node_modules` over the container's and baking any local `.env`
+into the image. Context is now 14MB.
+
+**Still unproven:** the run against your actual production export and a real
+Supabase instance. Mechanics are proven; your specific data is not. Step 2's
+row-count check is what confirms it.

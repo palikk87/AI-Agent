@@ -19,16 +19,16 @@ const Index = () => {
       "Upload a photo of your home and instantly see how different garage doors look on it. Free AI tool — no account needed, results in seconds.",
     themeColor: "#091F3B",
     ogType: "website",
-    siteName: "941 Garage Door Visualizer",
+    siteName: "SeeMyGD",
     image: "/og-thumbnail.jpg",
     jsonLd: [
       {
         "@context": "https://schema.org",
         "@type": "WebApplication",
-        name: "Garage Door Visualizer",
+        name: "SeeMyGD Garage Door Visualizer",
         applicationCategory: "DesignApplication",
         operatingSystem: "Web",
-        url: "https://visualizer.941garagedoor.com/",
+        url: "https://www.seemygd.com/tool",
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         description:
           "Free AI tool that shows how a new garage door looks on a photo of your home.",
