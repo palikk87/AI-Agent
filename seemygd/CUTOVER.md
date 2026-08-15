@@ -84,10 +84,23 @@ Optional attributes: `data-label` (button text), `data-color` (accent),
 Owners who copy their snippet from the dashboard get the correct host
 automatically — it's built from wherever the app is running.
 
-> Still outstanding: the three tenants we do not host (Grandview, Garage door
-> service and repair, Grateful garage doors) have snippets on their own sites
-> that we cannot edit. Until each owner repastes, their widget still points at
-> the old host and breaks when it goes dark.
+### The three tenants we do not host — scanned, and mostly a non-issue
+
+Their sites were scanned for `embed.js`, `data-slug`, `doorviz` and any seemygd
+reference, across every URL in each site's own sitemap:
+
+| Tenant | Site | Finding |
+| --- | --- | --- |
+| Garage door service and repair | gdsutah.com (SpotOn) | **never installed it** — 0 markers across all 7 sitemap pages |
+| Grateful garage doors | wefixgaragedoors.pro (Duda) | **never installed it** — 0 markers across all 5 sitemap pages |
+| Grandview Garage Doors | grandviewgaragedoors.com | **unknown** — SiteGround bot protection answers every request with a captcha (HTTP 202, 169 bytes), so the real page was never seen |
+
+So the exposure from tenants we cannot edit is one site, not three, and it may
+well be zero. Grandview needs a human to open it in a browser and view source —
+that is the only way past the captcha.
+
+Note: A Rated Garage Doors has no `websiteUrl` set on its company record, so
+there is no site on file to check for that tenant.
 
 ## 3. `visualizer.941garagedoor.com`
 
