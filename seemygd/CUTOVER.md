@@ -93,11 +93,16 @@ reference, across every URL in each site's own sitemap:
 | --- | --- | --- |
 | Garage door service and repair | gdsutah.com (SpotOn) | **never installed it** — 0 markers across all 7 sitemap pages |
 | Grateful garage doors | wefixgaragedoors.pro (Duda) | **never installed it** — 0 markers across all 5 sitemap pages |
-| Grandview Garage Doors | grandviewgaragedoors.com | **unknown** — SiteGround bot protection answers every request with a captcha (HTTP 202, 169 bytes), so the real page was never seen |
+| Grandview Garage Doors | grandviewgaragedoors.com | **never installed it** — confirmed from a real browser: no embed.js, no doorviz, no seemygd, no old-host reference, and zero `[data-doorviz]` elements in either the 230KB served HTML or the rendered DOM |
 
-So the exposure from tenants we cannot edit is one site, not three, and it may
-well be zero. Grandview needs a human to open it in a browser and view source —
-that is the only way past the captcha.
+So the exposure from tenants we cannot edit is **zero**. All three signed up and
+never put the tool on their site, so none of them carries a dependency on the
+old host and none needs a cutover step. **Step 2 is closed** — the only installs
+that ever existed were 941 and A Rated, and both now load from Render.
+
+Grandview took a browser to settle: its host answers automated requests with a
+captcha, so a scan from a sandbox reads identically to an empty site. Worth
+remembering the next time a scan reports "nothing found" on a protected host.
 
 Note: A Rated Garage Doors has no `websiteUrl` set on its company record, so
 there is no site on file to check for that tenant.
