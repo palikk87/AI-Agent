@@ -462,24 +462,11 @@ garageRouter.post("/swap", async (c) => {
     const origPx = origResizedBuffer.data;
     const aiPx = aiResizedBuffer.data;
 
-    const DOOR_THRESHOLD = 45;
-    let x1 = rW, x2 = 0, y1 = rH, y2 = 0;
-    for (let y = 0; y < rH; y++) {
-      for (let x = 0; x < rW; x++) {
-        const i = (y * rW + x) * 4;
-        const diff = Math.max(
-          Math.abs((origPx[i] ?? 0) - (aiPx[i] ?? 0)),
-          Math.abs((origPx[i + 1] ?? 0) - (aiPx[i + 1] ?? 0)),
-          Math.abs((origPx[i + 2] ?? 0) - (aiPx[i + 2] ?? 0))
-        );
-        if (diff > DOOR_THRESHOLD) {
-          if (x < x1) x1 = x;
-          if (x > x2) x2 = x;
-          if (y < y1) y1 = y;
-          if (y > y2) y2 = y;
-        }
-      }
-    }
+    const bb = doorSize.bbox;
+    let x1 = bb ? Math.round(bb.x * rW) : rW;
+    let y1 = bb ? Math.round(bb.y * rH) : rH;
+    let x2 = bb ? Math.round((bb.x + bb.w) * rW) : 0;
+    let y2 = bb ? Math.round((bb.y + bb.h) * rH) : 0;
 
     if (x1 < x2 && y1 < y2) {
       doorCenterXPct = (x1 + x2) / 2 / rW;
