@@ -28,6 +28,8 @@ import {
   renderGrid,
   centreOfCell,
   includePoint,
+  shouldWiden,
+  touchesEdge,
   rowIndex,
   textRenders,
   validateDoorBox,
@@ -243,6 +245,17 @@ console.log("\nfailure handling");
   const d5 = await detectDoor(img, classesOnly);
   check("size classes survive a failed box", d5.widthClass === "single" && d5.heightClass === "tall");
 }
+
+console.log("\ncrop-edge detection");
+check("centre answer does not touch the edge", !touchesEdge(4, 8, 4, 8, 12, 12).any);
+check("left-clamped answer touches", touchesEdge(1, 8, 4, 8, 12, 12).left);
+check("right-clamped answer touches", touchesEdge(4, 10, 4, 8, 12, 12).right);
+check("bottom-clamped answer touches", touchesEdge(4, 8, 4, 10, 12, 12).bottom);
+check("the real clamped case is caught (B..K of 12)", touchesEdge(1, 10, 3, 10, 12, 12).any);
+check("widen when the crop has room on the clamped side",
+  shouldWiden(touchesEdge(1, 10, 3, 10, 12, 12), { x: 0.2, y: 0.2, w: 0.5, h: 0.5 }));
+check("do not widen for a door flush against the photo edge",
+  !shouldWiden({ left: true, right: false, top: false, bottom: false }, { x: 0, y: 0.3, w: 0.5, h: 0.5 }));
 
 console.log("\nfine prompt");
 check("refine prompt defines the bottom edge", FINE_PROMPT.includes("meets the ground"));

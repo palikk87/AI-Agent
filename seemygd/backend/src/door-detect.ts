@@ -51,6 +51,8 @@ export type DoorTrace = {
   coarseReply?: Record<string, unknown>;
   coarseBox?: DoorBox;
   crop?: DoorBox;
+  cropRetry?: DoorBox;
+  fineRetryReply?: Record<string, unknown>;
   centre?: { x: number; y: number };
   fineReply?: Record<string, unknown>;
   fineBox?: DoorBox;
@@ -83,6 +85,14 @@ const VISION_PX = 768;
  * into a confidently wrong refined box.
  */
 const CROP_MARGIN = 0.35;
+
+/**
+ * Margin used for the second look when the first answer came back pressed
+ * against the crop boundary. Large on purpose: at that point the coarse box is
+ * known to be too small, so the retry needs to clear the door comfortably
+ * rather than by a little.
+ */
+const CROP_MARGIN_RETRY = 1.1;
 
 export const DOOR_VISION_MODEL = process.env.DOOR_VISION_MODEL || "gpt-4o";
 
@@ -468,6 +478,53 @@ export function expandBox(b: DoorBox, pad: number): DoorBox {
   };
 }
 
+/**
+ * True when a cell answer sits against the edge of the grid it was measured in.
+ *
+ * The refine pass can only name cells inside the crop, so a door running past
+ * the crop gets reported as ending at the boundary. The answer looks perfectly
+ * well-formed; it is just clamped. Measured on the two-door photo the pass
+ * returned leftCol B and rightCol K of twelve — it had bounded nearly the whole
+ * crop, and the crop was half the width of the door.
+ */
+export function touchesEdge(
+  left: number,
+  right: number,
+  top: number,
+  bottom: number,
+  cols: number,
+  rows: number
+): { left: boolean; right: boolean; top: boolean; bottom: boolean; any: boolean } {
+  const sides = {
+    left: left <= 1,
+    right: right >= cols - 2,
+    top: top <= 1,
+    bottom: bottom >= rows - 2,
+  };
+  return { ...sides, any: sides.left || sides.right || sides.top || sides.bottom };
+}
+
+/**
+ * Whether a clamped answer is worth a second look.
+ *
+ * Only if the crop can actually grow on a side that came back clamped. A door
+ * genuinely flush against the edge of the photo pins the answer to the boundary
+ * on that side forever, and retrying costs an extra vision call to re-measure
+ * the same door at coarser effective resolution — measurably worse, not better.
+ */
+export function shouldWiden(
+  sides: { left: boolean; right: boolean; top: boolean; bottom: boolean },
+  crop: DoorBox
+): boolean {
+  const eps = 1e-3;
+  return (
+    (sides.left && crop.x > eps) ||
+    (sides.right && crop.x + crop.w < 1 - eps) ||
+    (sides.top && crop.y > eps) ||
+    (sides.bottom && crop.y + crop.h < 1 - eps)
+  );
+}
+
 /** Widen a box just enough to contain `p`, with a little slack, clamped to the frame. */
 export function includePoint(b: DoorBox, p: { x: number; y: number }): DoorBox {
   const slack = 0.02;
@@ -550,17 +607,13 @@ export async function detectDoor(
 
   // Refine against a crop. The margin gives the model room to see the real
   // edges even when the coarse box clipped them, and the crop is widened again
-  // if needed so the marked centre is always inside it — a marker outside the
-  // crop cannot point at anything.
-  const crop = includePoint(expandBox(coarseBox, CROP_MARGIN), centre);
-  if (trace) {
-    trace.crop = crop;
-    trace.centre = centre;
-  }
-  try {
-    const meta = await sharp(image).metadata();
-    const W = meta.width!;
-    const H = meta.height!;
+  // if needed so the reported centre is always inside it.
+  const meta = await sharp(image).metadata();
+  const W = meta.width!;
+  const H = meta.height!;
+
+  /** One refine pass over `crop`: returns the model's cells and the box in crop space. */
+  const refineOn = async (crop: DoorBox) => {
     // Crop from the full-resolution original, not the downscaled coarse copy —
     // this pass is the one that needs to see the actual door edges. Enlargement
     // is deliberately allowed: a small crop upscaled to VISION_PX gains no
@@ -576,37 +629,69 @@ export async function detectDoor(
       .png()
       .toBuffer();
 
-    // Mark the coarse pass's door inside the crop, so the refine pass measures
-    // the door the coarse pass chose rather than whatever else is in frame.
-    //
-    // Prefer the explicitly reported centre cell over the centre of the coarse
-    // box. Naming one cell is a far easier judgement than placing four edges,
-    // and when the two disagree it is the box that is usually wrong: on a
-    // two-door house the box spanned both doors, putting its centre on the post
-    // between them — a marker there points at no door at all.
     const gridded = await renderGrid(cropped, FINE_COLS, FINE_ROWS);
-    if (trace && keepImages) trace.fineImage = gridded.toString("base64");
-    const fine = parseJson(await vision(gridded.toString("base64"), FINE_PROMPT));
-    if (trace) trace.fineReply = fine;
+    const reply = parseJson(await vision(gridded.toString("base64"), FINE_PROMPT));
+    const cells = {
+      l: colIndex(reply.leftCol),
+      r: colIndex(reply.rightCol),
+      t: rowIndex(reply.topRow),
+      b: rowIndex(reply.bottomRow),
+    };
+    return {
+      gridded,
+      reply,
+      cells,
+      innerBox: cellsToBox(cells.l, cells.r, cells.t, cells.b, FINE_COLS, FINE_ROWS),
+    };
+  };
 
-    const innerBox = cellsToBox(
-      colIndex(fine.leftCol),
-      colIndex(fine.rightCol),
-      rowIndex(fine.topRow),
-      rowIndex(fine.bottomRow),
-      FINE_COLS,
-      FINE_ROWS
-    );
-    if (innerBox) {
-      if (trace) trace.fineBox = innerBox;
-      const refined = boxFromCrop(innerBox, crop);
+  let crop = includePoint(expandBox(coarseBox, CROP_MARGIN), centre);
+  if (trace) {
+    trace.crop = crop;
+    trace.centre = centre;
+  }
+
+  try {
+    let pass = await refineOn(crop);
+    if (trace) {
+      trace.fineReply = pass.reply;
+      if (keepImages) trace.fineImage = pass.gridded.toString("base64");
+    }
+
+    // A box pressed against the crop boundary is a clamped answer, not a
+    // measurement: the door carries on past what the model was shown. The coarse
+    // box sets the crop, so a coarse box that is too small can never be recovered
+    // by refining inside it — the only fix is to widen the view and look again.
+    const clamped = touchesEdge(pass.cells.l, pass.cells.r, pass.cells.t, pass.cells.b, FINE_COLS, FINE_ROWS);
+    if (pass.innerBox && clamped.any && shouldWiden(clamped, crop)) {
+      const wider = includePoint(expandBox(coarseBox, CROP_MARGIN_RETRY), centre);
+      console.info(
+        `[door-detect] refine hit the crop edge (${JSON.stringify(pass.cells)}); retrying on a wider crop`
+      );
+      const retry = await refineOn(wider);
+      if (trace) {
+        trace.cropRetry = wider;
+        trace.fineRetryReply = retry.reply;
+        if (keepImages) trace.fineImage = retry.gridded.toString("base64");
+      }
+      // Keep the retry only if it produced a usable box; a wider crop that comes
+      // back unreadable is worse than the clamped answer it was meant to replace.
+      if (retry.innerBox) {
+        pass = retry;
+        crop = wider;
+      }
+    }
+
+    if (pass.innerBox) {
+      if (trace) trace.fineBox = pass.innerBox;
+      const refined = boxFromCrop(pass.innerBox, crop);
       const checked = validateDoorBox(refined.x, refined.x + refined.w, refined.y, refined.y + refined.h);
       if (checked) {
         console.info(`[door-detect] refined ${JSON.stringify(checked)}`);
         return { ...base, bbox: checked, stage: "refined" };
       }
     }
-    console.warn("[door-detect] refine pass unusable, keeping coarse box:", JSON.stringify(fine).slice(0, 200));
+    console.warn("[door-detect] refine pass unusable, keeping coarse box:", JSON.stringify(pass.reply).slice(0, 200));
   } catch (err) {
     console.warn("[door-detect] refine pass failed, keeping coarse box:", err);
   }
