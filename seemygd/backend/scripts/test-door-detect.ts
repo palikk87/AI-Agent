@@ -23,6 +23,7 @@ import {
   colIndex,
   detectDoor,
   expandBox,
+  finePrompt,
   renderGrid,
   centreOfCell,
   includePoint,
@@ -241,6 +242,14 @@ console.log("\nfailure handling");
   const d5 = await detectDoor(img, classesOnly);
   check("size classes survive a failed box", d5.widthClass === "single" && d5.heightClass === "tall");
 }
+
+console.log("\nfine prompt");
+check("marker paragraph only appears with multiple doors",
+  finePrompt(true).includes("green circular marker") && !finePrompt(false).includes("marker"));
+check("both variants keep the bottom-edge definition",
+  finePrompt(true).includes("meets the ground") && finePrompt(false).includes("meets the ground"));
+check("both variants keep the panel-seam clause",
+  finePrompt(true).includes("panel") && finePrompt(false).includes("panel"));
 
 console.log("\nfont sanity");
 check("textRenders() is true where fonts exist", await textRenders());

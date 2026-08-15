@@ -310,36 +310,54 @@ const COARSE_PROMPT = [
   "If there is no garage door at all, set leftCol, rightCol, topRow and bottomRow to null.",
 ].join("\n");
 
-const FINE_PROMPT = [
-  "This is a close crop around one garage door, with a labelled grid drawn over it.",
-  `Columns are lettered A-${COL_LABELS[FINE_COLS - 1]} left to right; rows are numbered 1-${FINE_ROWS} top to bottom.`,
-  "",
-  "A green circular marker is drawn on the door you must measure.",
-  "",
-  "If a second garage door is partly visible at the edge of the crop, leave it out.",
-  "",
-  "Measure the marked door at its full extent: all the way across from the outside",
-  "of its frame on one side to the outside of its frame on the other, and all the",
-  "way down to the ground. A wide door is often divided into several panel",
-  "sections by vertical seams — those are parts of the one door, so measure across",
-  "all of them, not just the section under the marker.",
-  "",
-  "Locate that door's four outer edges, including its frame and trim.",
-  "For each edge, name the single grid cell the edge passes through.",
-  "",
-  "Reply with JSON only, no prose and no markdown fence, with these keys:",
-  '  leftCol   - column letter the door\'s left edge passes through',
-  '  rightCol  - column letter the door\'s right edge passes through',
-  '  topRow    - row number the top of the door frame passes through',
-  '  bottomRow - row number where the bottom of the door meets the ground',
-  "",
-  "For bottomRow, find where the door panel actually ends and the driveway begins.",
-  "Do not carry on down into the driveway, its apron, or the shadow in front of",
-  "the door. Equally, do not stop at the lowest panel seam — the door continues",
-  "below it to the ground.",
-  "",
-  "If there is no garage door under the marker, set all four to null.",
-].join("\n");
+/**
+ * The refine-pass prompt, with the marker paragraph included only when there is
+ * more than one door to tell apart.
+ *
+ * Measured per photo, the marker earns its place on multi-door houses — it took
+ * the two-door case from 0.347 to 0.428 and the three-door case from 0.393 to
+ * 0.488, by stopping the box running across neighbouring doors. On a house with
+ * one door it cost 0.774 -> 0.604: there is nothing to disambiguate, so the
+ * marker only adds something to fixate on, and a wide door divided into panel
+ * sections invites bounding the section under it. Point at a door only when
+ * which-door is genuinely the question.
+ */
+export function finePrompt(marked: boolean): string {
+  return [
+    "This is a close crop around one garage door, with a labelled grid drawn over it.",
+    `Columns are lettered A-${COL_LABELS[FINE_COLS - 1]} left to right; rows are numbered 1-${FINE_ROWS} top to bottom.`,
+    "",
+    ...(marked
+      ? [
+          "This house has more than one garage door. A green circular marker is drawn",
+          "on the one you must measure. If another garage door is partly visible at the",
+          "edge of the crop, leave it out.",
+          "",
+        ]
+      : []),
+    `Measure the ${marked ? "marked" : ""} door at its full extent: all the way across from the outside`.replace("  ", " "),
+    "of its frame on one side to the outside of its frame on the other, and all the",
+    "way down to the ground. A wide door is often divided into several panel",
+    "sections by vertical seams — those are parts of the one door, so measure across",
+    "all of them.",
+    "",
+    "Locate that door's four outer edges, including its frame and trim.",
+    "For each edge, name the single grid cell the edge passes through.",
+    "",
+    "Reply with JSON only, no prose and no markdown fence, with these keys:",
+    "  leftCol   - column letter the door's left edge passes through",
+    "  rightCol  - column letter the door's right edge passes through",
+    "  topRow    - row number the top of the door frame passes through",
+    "  bottomRow - row number where the bottom of the door meets the ground",
+    "",
+    "For bottomRow, find where the door panel actually ends and the driveway begins.",
+    "Do not carry on down into the driveway, its apron, or the shadow in front of",
+    "the door. Equally, do not stop at the lowest panel seam — the door continues",
+    "below it to the ground.",
+    "",
+    "If there is no garage door here, set all four to null.",
+  ].join("\n");
+}
 
 // --- vision plumbing -------------------------------------------------------
 
@@ -564,13 +582,13 @@ export async function detectDoor(
     // and when the two disagree it is the box that is usually wrong: on a
     // two-door house the box spanned both doors, putting its centre on the post
     // between them — a marker there points at no door at all.
-    const marker = {
-      x: (centre.x - crop.x) / crop.w,
-      y: (centre.y - crop.y) / crop.h,
-    };
+    const multipleDoors = Number(coarse.doorCount) > 1;
+    const marker = multipleDoors
+      ? { x: (centre.x - crop.x) / crop.w, y: (centre.y - crop.y) / crop.h }
+      : undefined;
     const gridded = await renderGrid(cropped, FINE_COLS, FINE_ROWS, marker);
     if (trace && keepImages) trace.fineImage = gridded.toString("base64");
-    const fine = parseJson(await vision(gridded.toString("base64"), FINE_PROMPT));
+    const fine = parseJson(await vision(gridded.toString("base64"), finePrompt(multipleDoors)));
     if (trace) trace.fineReply = fine;
 
     const innerBox = cellsToBox(
