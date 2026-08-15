@@ -23,7 +23,8 @@ import {
   colIndex,
   detectDoor,
   expandBox,
-  finePrompt,
+  COARSE_PROMPT,
+  FINE_PROMPT,
   renderGrid,
   centreOfCell,
   includePoint,
@@ -244,12 +245,10 @@ console.log("\nfailure handling");
 }
 
 console.log("\nfine prompt");
-check("marker paragraph only appears with multiple doors",
-  finePrompt(true).includes("green circular marker") && !finePrompt(false).includes("marker"));
-check("both variants keep the bottom-edge definition",
-  finePrompt(true).includes("meets the ground") && finePrompt(false).includes("meets the ground"));
-check("both variants keep the panel-seam clause",
-  finePrompt(true).includes("panel") && finePrompt(false).includes("panel"));
+check("refine prompt defines the bottom edge", FINE_PROMPT.includes("meets the ground"));
+check("refine prompt keeps the panel-seam clause", FINE_PROMPT.includes("panel sections"));
+check("refine prompt no longer references a marker", !FINE_PROMPT.includes("marker"));
+check("coarse prompt says panels are not door edges", COARSE_PROMPT.includes("Count doors by openings"));
 
 console.log("\nfont sanity");
 check("textRenders() is true where fonts exist", await textRenders());
