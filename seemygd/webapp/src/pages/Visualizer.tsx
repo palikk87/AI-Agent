@@ -3,6 +3,7 @@ import { useParams, Link, useSearchParams } from "react-router-dom"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
+import { CREDIT_TEXT, creditAnchorProps } from "@/lib/credit"
 import { StyleWizard } from "@/components/garage/StyleWizard"
 import { ResultViewer } from "@/components/garage/ResultViewer"
 import { DesignHistory, type SavedDesign } from "@/components/garage/DesignHistory"
@@ -610,14 +611,15 @@ export default function Visualizer({
         ) : null}
       </footer>
 
-      {/* Backlink credit — visible on every client URL, plain <a>, no JS. */}
+      {/* Credit — visible on every client URL, plain <a>, no JS. This page is
+          framed into third-party sites, so the link is nofollowed; see
+          lib/credit.ts for why. Attributes come from the shared helper so this
+          anchor cannot drift from the rule. */}
       <a
-        href="https://seemygd.com"
-        target="_blank"
-        rel="noopener"
+        {...creditAnchorProps()}
         className="fixed bottom-2 right-3 z-20 text-[11px] leading-none text-white/40 no-underline hover:underline hover:text-white/60 transition-colors"
       >
-        Visualizer powered by Seemygd
+        {CREDIT_TEXT}
       </a>
     </div>
   )

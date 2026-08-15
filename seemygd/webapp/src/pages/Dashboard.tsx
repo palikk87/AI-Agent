@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { CREDIT_FIXED_STYLE, creditAnchorHtml } from "@/lib/credit"
 import type { Area } from "react-easy-crop"
 import { useNavigate } from "react-router-dom"
 import { api } from "@/lib/api"
@@ -263,10 +264,10 @@ export default function Dashboard() {
 
   // Embed snippets shown in the dashboard.
   const popupSnippet = company
-    ? `<!-- Visualize My Door popup button -->\n<script src="${window.location.origin}/embed.js" data-slug="${visualizerHandle}" defer></script>\n<!-- Credit link kept as static HTML so search engines can crawl it (embed.js skips its own inject when this is present) -->\n<a id="seemygd-credit" href="https://seemygd.com" target="_blank" rel="noopener" style="position:fixed;right:12px;bottom:6px;z-index:2147483645;font-size:11px;line-height:1;color:#9ca3af;text-decoration:none;font-family:system-ui,-apple-system,sans-serif;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Visualizer powered by Seemygd</a>`
+    ? `<!-- Visualize My Door popup button -->\n<script src="${window.location.origin}/embed.js" data-slug="${visualizerHandle}" defer></script>\n<!-- Credit link kept as static HTML so search engines can crawl it (embed.js adopts it and keeps it nofollowed) -->\n${creditAnchorHtml({ withId: true, style: CREDIT_FIXED_STYLE })}`
     : ""
   const iframeSnippet = company
-    ? `<!-- Garage Door Visualizer — full-width embed -->\n<div style="max-width:1400px;margin:0 auto;">\n  <iframe\n    src="${visualizerUrl}"\n    title="Garage Door Visualizer"\n    loading="lazy"\n    allow="camera; clipboard-write"\n    style="width:100%;min-height:1100px;height:88vh;display:block;border:0;border-radius:16px;"\n  ></iframe>\n  <div style="text-align:right;padding:4px 4px 0;">\n    <a href="https://seemygd.com" target="_blank" rel="noopener" style="font-size:11px;color:#9ca3af;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Visualizer powered by Seemygd</a>\n  </div>\n</div>`
+    ? `<!-- Garage Door Visualizer — full-width embed -->\n<div style="max-width:1400px;margin:0 auto;">\n  <iframe\n    src="${visualizerUrl}"\n    title="Garage Door Visualizer"\n    loading="lazy"\n    allow="camera; clipboard-write"\n    style="width:100%;min-height:1100px;height:88vh;display:block;border:0;border-radius:16px;"\n  ></iframe>\n  <div style="text-align:right;padding:4px 4px 0;">\n    ${creditAnchorHtml({ style: "font-size:11px;color:#9ca3af;text-decoration:none;" })}\n  </div>\n</div>`
     : ""
 
   function copyUrl() {

@@ -126,10 +126,42 @@
     }
   });
 
-  // Inject a small, crawlable backlink credit onto the host page itself.
+  // --- outbound credit link -------------------------------------------------
+  //
+  // These values mirror webapp/src/lib/credit.ts. This file is served to pages
+  // we do not own, so it cannot import that module; scripts/test-credit-links.ts
+  // pins the two copies together and fails if they drift.
+  //
+  // rel MUST contain nofollow. This link is placed by us onto other people's
+  // sites, at scale — a followed link injected that way is exactly what Google's
+  // link-spam policy describes, regardless of which of our domains it points at.
+  var CREDIT_ID = "seemygd-credit";
+  var CREDIT_HREF = "https://seemygd.com";
+  var CREDIT_TEXT = "Visualizer powered by Seemygd";
+  var CREDIT_REL = "nofollow noopener";
+
+  // The single place any credit anchor gets its identity and rel. Every path
+  // below goes through this, so none of them can quietly ship a followed link.
+  function applyCreditAttrs(a) {
+    a.id = CREDIT_ID;
+    a.href = CREDIT_HREF;
+    a.target = "_blank";
+    a.rel = CREDIT_REL;
+    return a;
+  }
+
+  // Place a small, crawlable-but-nofollowed credit on the host page.
   function addCredit() {
-    // Already upgraded / freshly injected — nothing to do.
-    if (document.getElementById("seemygd-credit")) return;
+    // An anchor may already be on the page because the owner pasted the static
+    // snippet. Previously this returned early and left it exactly as pasted —
+    // which meant older snippets kept their followed rel forever, on sites we
+    // cannot edit. Adopt it instead and qualify it in place. Its text is left
+    // alone in case the owner reworded it.
+    var existing = document.getElementById(CREDIT_ID);
+    if (existing) {
+      applyCreditAttrs(existing);
+      return;
+    }
 
     // Self-heal the old pre-rebrand credit. Site owners who pasted the previous
     // static snippet still have <a id="cmygd-credit" href="https://cmygd.com">
@@ -149,20 +181,15 @@
       }
     }
     if (stale) {
-      stale.id = "seemygd-credit";
-      stale.href = "https://seemygd.com";
+      applyCreditAttrs(stale);
       if (/cmygd/i.test(stale.textContent || "")) {
-        stale.textContent = "Visualizer powered by Seemygd";
+        stale.textContent = CREDIT_TEXT;
       }
       return;
     }
 
-    var a = document.createElement("a");
-    a.id = "seemygd-credit";
-    a.href = "https://seemygd.com";
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.textContent = "Visualizer powered by Seemygd";
+    var a = applyCreditAttrs(document.createElement("a"));
+    a.textContent = CREDIT_TEXT;
     a.style.cssText = [
       "position:fixed", "right:12px", "bottom:6px", "z-index:2147483645",
       "font-size:11px", "line-height:1", "color:#9ca3af",
