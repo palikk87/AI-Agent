@@ -235,7 +235,8 @@ adminRouter.post("/preview-url", async (c) => {
 
   const token = createPreviewToken(site)
   // Build the absolute URL from the origin the admin is on (falls back to
-  // configured BACKEND_URL host) so it works on newdoor.vibecode.run, previews, etc.
+  // configured BACKEND_URL host) so it works on whatever host is serving the
+  // app — seemygd.com, the Render URL, or a preview — without hardcoding one.
   let origin = c.req.header("origin") || ""
   if (!origin) {
     try { origin = new URL(c.req.header("referer") || process.env.BACKEND_URL || "").origin } catch { origin = "" }

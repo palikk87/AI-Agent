@@ -11,7 +11,7 @@ same logins. Only the things Vibecode provided *underneath* it have been replace
 | Logo/hero uploads | local `uploads/` folder | Supabase Storage |
 | Website hosting | Vibecode static host | the app serves itself — one service |
 | Server | Vibecode container | **Render** |
-| Address | `newdoor.vibecode.run` | **www.seemygd.com** |
+| Address | the old platform's host | **www.seemygd.com** |
 | Backups | Vibecode disk snapshots | Supabase automatic backups |
 
 **Unchanged, and never Vibecode's to begin with:** OpenAI (the app has always
@@ -178,10 +178,11 @@ records). Wait for the certificate to go green.
 
 **Do this while Vibecode is still running**, so both work at once.
 
-Every widget already on a customer's website points at
-`https://newdoor.vibecode.run/embed.js`. When Vibecode shuts off, those widgets
-break — even though the app is running fine at the new address. `vibecode.run`
-isn't yours, so it can't be redirected.
+Every widget already on a customer's website loaded `embed.js` from the old
+platform's host. When that platform shuts off, those widgets break — even though
+the app is running fine at the new address. That domain isn't yours, so it can't
+be redirected; the snippet itself has to change. Both sites we host have been
+repointed (see CUTOVER.md step 2); tenants we don't host still need to repaste.
 
 There are five tenants and **none has a vanity slug**, so each embed keys off the
 raw company id. The per-tenant snippets are in [CUTOVER.md](CUTOVER.md); the shape is:

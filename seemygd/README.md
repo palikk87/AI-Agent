@@ -45,7 +45,7 @@ auth cookies working exactly as before.
 | --- | --- |
 | Frontend | React 18, Vite, Tailwind v3, shadcn/ui, React Query, Sonner toasts |
 | Backend | Bun runtime, Hono, Zod validation |
-| AI | OpenAI `gpt-image-1` (images/edits endpoint) via the Vibecode proxy |
+| AI | OpenAI `gpt-image-1` (images/edits) and `gpt-4o` vision, called directly with `OPENAI_API_KEY` |
 
 ### Endpoints
 

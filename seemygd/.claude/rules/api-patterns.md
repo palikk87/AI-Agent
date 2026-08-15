@@ -24,8 +24,13 @@ Shared conventions for API communication between backend and frontend.
 </response_envelope>
 
 <auth_cors>
-  Better Auth trustedOrigins (string wildcards):
-  ["http://localhost:*", "http://127.0.0.1:*", "https://*.dev.vibecode.run", "https://*.vibecode.run", "https://*.vibecodeapp.com", "https://*.vibecode.dev", "https://vibecode.dev"]
+  Better Auth trustedOrigins (string wildcards). The live list is
+  STATIC_TRUSTED_ORIGINS in backend/src/auth.ts — edit it there, not here:
+  ["http://localhost:*", "http://127.0.0.1:*", "https://seemygd.com", "https://www.seemygd.com", "https://*.lovable.app", "https://*.lovableproject.com", "https://941garagedoor.com"]
+
+  Tenant custom domains are appended at runtime by resolveTrustedOrigins(), so a
+  customer signing in from their own domain is trusted without a code change.
+  Extra hosts go in EXTRA_TRUSTED_ORIGINS rather than being hardcoded.
 
   WRONG: RegExp objects or returning boolean - crashes origin trust.
   RIGHT: String array with * wildcards.

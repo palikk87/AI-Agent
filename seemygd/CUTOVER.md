@@ -41,30 +41,40 @@ and the branding lookup matches `OR: [{ id }, { vanitySlug }]`
 
 Open all five. Each should show that business's name, colour and phone.
 
-## 2. Replace the embed snippet on each customer's website
+## 2. Replace the embed snippet on each customer's website — **DONE**
 
-Anything already installed points at `https://newdoor.vibecode.run/embed.js` and
-**stops working the moment Vibecode goes dark** — the widget derives its origin
-from its own `<script src>`, so it keeps calling the old host. `vibecode.run` is
-not yours, so it cannot be redirected. This step is the one that protects users.
+Both sites we host are migrated and published, verified live:
 
-Paste before `</body>`, swapping in the right id:
+| Site | Embed host now | Verified |
+| --- | --- | --- |
+| 941garagedoor.com (`/visualizer`) | `https://seemygd.onrender.com/embed.js` | swap completed in 33s |
+| A Rated Garage Doors | `https://seemygd.onrender.com/embed.js` | swap completed in 27s |
+
+Both previously loaded `embed.js` from the old host, which is an alias of the
+platform we left. The widget derives its API origin from its own `<script src>`,
+so it kept calling that host and would have died with it. That domain is not
+ours and cannot be redirected, which is why the snippet itself had to change.
+
+**The host below is deliberately the Render URL, not www.seemygd.com.** That
+domain currently serves the Lovable landing page, so `www.seemygd.com/embed.js`
+returns 404 — pasting the "obvious" URL breaks the widget immediately instead of
+later. Switch these to `www.seemygd.com` only once that domain serves this app.
 
 ```html
 <!-- A Rated Garage Doors -->
-<script src="https://www.seemygd.com/embed.js" data-slug="cmrwhk9sa0000pn550sm337gd" defer></script>
+<script src="https://seemygd.onrender.com/embed.js" data-slug="cmrwhk9sa0000pn550sm337gd" defer></script>
 
 <!-- 941 Garage Door -->
-<script src="https://www.seemygd.com/embed.js" data-slug="cmrwhzmyx0000pn559ojbkz0m" defer></script>
+<script src="https://seemygd.onrender.com/embed.js" data-slug="cmrwhzmyx0000pn559ojbkz0m" defer></script>
 
 <!-- Grandview Garage Doors -->
-<script src="https://www.seemygd.com/embed.js" data-slug="cmrxgkukk0001pn55j3zp10j4" defer></script>
+<script src="https://seemygd.onrender.com/embed.js" data-slug="cmrxgkukk0001pn55j3zp10j4" defer></script>
 
 <!-- Garage door service and repair -->
-<script src="https://www.seemygd.com/embed.js" data-slug="cmrxw0qv30006pn55heou2rtq" defer></script>
+<script src="https://seemygd.onrender.com/embed.js" data-slug="cmrxw0qv30006pn55heou2rtq" defer></script>
 
 <!-- Grateful garage doors -->
-<script src="https://www.seemygd.com/embed.js" data-slug="cmryenll80007pn55bn2bzjcv" defer></script>
+<script src="https://seemygd.onrender.com/embed.js" data-slug="cmryenll80007pn55bn2bzjcv" defer></script>
 ```
 
 Optional attributes: `data-label` (button text), `data-color` (accent),
@@ -74,11 +84,19 @@ Optional attributes: `data-label` (button text), `data-color` (accent),
 Owners who copy their snippet from the dashboard get the correct host
 automatically — it's built from wherever the app is running.
 
+> Still outstanding: the three tenants we do not host (Grandview, Garage door
+> service and repair, Grateful garage doors) have snippets on their own sites
+> that we cannot edit. Until each owner repastes, their widget still points at
+> the old host and breaks when it goes dark.
+
 ## 3. `visualizer.941garagedoor.com`
 
 This is the only custom hostname in play, and it belongs to the deployment rather
-than to a tenant row. Re-point its CNAME at Render, or retire it in favour of the
-`/v/...` link above. Its SEO tags already move to `www.seemygd.com` in this repo.
+than to a tenant row. It still resolves to the old platform, but nothing we host
+loads from it any more — both embeds now point at Render — so it is dead weight
+rather than a live dependency. Re-point its CNAME at Render or retire it in
+favour of the `/v/...` link above. Its SEO tags already move to
+`www.seemygd.com` in this repo.
 
 ## 4. Square
 

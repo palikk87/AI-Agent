@@ -1,6 +1,10 @@
-# Vibecode Workspace
+# SeeMyGD workspace
 
-This workspace contains a mobile app and backend server.
+Garage door visualizer SaaS. Companies sign up, get a branded embed for their own
+site, and the embed backlinks here. Self-hosted on Render + Supabase since the
+migration off the original build platform — see MIGRATION.md and CUTOVER.md.
+
+This workspace contains a web app and backend server.
 
 <projects>
   webapp/    — React app (port 8000, environment variable VITE_BASE_URL)
@@ -47,10 +51,17 @@ This workspace contains a mobile app and backend server.
 </skills>
 
 <environment>
-  System manages git and dev servers. DO NOT manage these.
-  The user views the app through Vibecode Mobile App with a webview preview or Vibecode Web App with an iframe preview.
-  The user cannot see code or terminal. Do everything for them.
-  Write one-off scripts to achieve tasks the user asks for.
-  Communicate in an easy to understand manner for non-technical users.
+  Self-hosted. You DO manage git here: commit and push your own work.
+  Production is Render (Docker, autoDeploy from the tracked branch) with Supabase
+  Postgres and Supabase Storage. `render.yaml` is the blueprint.
+
+  Hosts, which are not yet the same thing:
+  - seemygd.com / www.seemygd.com — currently the Lovable landing page
+  - seemygd.onrender.com — this app: /signup, /login, /dashboard, /v/<companyId>,
+    /embed.js. Customer embeds point here.
+  Do not assume seemygd.com serves this app; /embed.js there returns 404 today.
+
+  Write one-off scripts to achieve tasks. Verify against the live service rather
+  than assuming — a swap can look fine in code and be wrong in production.
   Be concise and don't talk too much.
 </environment>
