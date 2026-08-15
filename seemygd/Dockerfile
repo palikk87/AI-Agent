@@ -35,6 +35,19 @@ RUN bun run vite build --outDir dist
 FROM oven/bun:1 AS runtime
 WORKDIR /app/backend
 
+# Fonts. Door detection draws a labelled grid over the photo and asks the model
+# which labelled cells the door covers, so the labels have to actually render.
+# The base image ships no fonts at all: librsvg silently drew every label as an
+# empty tofu box, the grid arrived at the model unreadable, and detection fell
+# back to guessing from bare gridlines — correct horizontally, badly wrong
+# vertically. It rendered fine on any dev machine, which is exactly why it went
+# unnoticed. src/door-detect.ts re-checks this at boot and logs loudly if text
+# ever stops rendering again.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends fonts-dejavu-core fontconfig \
+  && fc-cache -f \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY backend/package.json backend/bun.lock ./
 RUN bun install --frozen-lockfile
 

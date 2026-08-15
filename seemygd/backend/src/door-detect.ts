@@ -56,6 +56,8 @@ export type DoorTrace = {
   /** base64 PNGs of the gridded images actually sent to the model. */
   coarseImage?: string;
   fineImage?: string;
+  /** False means grid labels are blank and any box here is worthless. */
+  fontsUsable?: boolean;
 };
 
 export type DetectOptions = {
@@ -82,6 +84,52 @@ const VISION_PX = 768;
 const CROP_MARGIN = 0.35;
 
 export const DOOR_VISION_MODEL = process.env.DOOR_VISION_MODEL || "gpt-4o";
+
+// --- font sanity -----------------------------------------------------------
+
+/**
+ * Confirm the platform can actually draw text into an SVG.
+ *
+ * This is not hypothetical. The production image shipped with no fonts
+ * installed, so every grid label rendered as an empty tofu box. The photos
+ * reaching the model carried gridlines and no readable references at all, and
+ * detection quietly degraded to guessing — while rendering perfectly on every
+ * development machine. A missing font is invisible in the output unless
+ * something goes looking for it, so this goes looking for it.
+ */
+export async function textRenders(): Promise<boolean> {
+  try {
+    const svg = Buffer.from(
+      `<svg width="80" height="40"><rect width="80" height="40" fill="#000"/>` +
+        `<text x="4" y="30" font-family="sans-serif" font-size="30" fill="#fff">A8</text></svg>`
+    );
+    const { data } = await sharp(svg).greyscale().raw().toBuffer({ resolveWithObject: true });
+    // Glyph strokes should light up a healthy number of pixels; tofu boxes and a
+    // blank canvas both leave far fewer.
+    let ink = 0;
+    for (const v of data) if (v > 128) ink++;
+    return ink > 60;
+  } catch {
+    return false;
+  }
+}
+
+let fontCheck: Promise<boolean> | undefined;
+/** Memoised so the check runs once per process, not once per request. */
+export function fontsUsable(): Promise<boolean> {
+  if (!fontCheck) {
+    fontCheck = textRenders().then((ok) => {
+      if (!ok) {
+        console.error(
+          "[door-detect] FONT FAILURE: SVG text is not rendering, so grid labels are blank. " +
+            "Door detection cannot work. Install fonts in the runtime image (see Dockerfile)."
+        );
+      }
+      return ok;
+    });
+  }
+  return fontCheck;
+}
 
 // --- grid rendering --------------------------------------------------------
 
@@ -369,6 +417,9 @@ export async function detectDoor(
   const trace: DoorTrace | undefined = opts.trace ? {} : undefined;
   const keepImages = opts.trace === "images";
   const fallback: DoorDetection = { widthClass: "double", heightClass: "standard", stage: "none", trace };
+
+  const fontsOk = await fontsUsable();
+  if (trace) trace.fontsUsable = fontsOk;
 
   let coarse: Record<string, unknown>;
   try {

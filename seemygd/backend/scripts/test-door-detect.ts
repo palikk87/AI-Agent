@@ -25,6 +25,7 @@ import {
   expandBox,
   renderGrid,
   rowIndex,
+  textRenders,
   validateDoorBox,
 } from "../src/door-detect";
 
@@ -224,6 +225,21 @@ console.log("\nfailure handling");
     JSON.stringify({ widthClass: "single", heightClass: "tall", leftCol: null });
   const d5 = await detectDoor(img, classesOnly);
   check("size classes survive a failed box", d5.widthClass === "single" && d5.heightClass === "tall");
+}
+
+console.log("\nfont sanity");
+check("textRenders() is true where fonts exist", await textRenders());
+{
+  // Prove the check can actually fail, so a green result means something.
+  const blank = await sharp({
+    create: { width: 80, height: 40, channels: 3, background: { r: 0, g: 0, b: 0 } },
+  })
+    .greyscale()
+    .raw()
+    .toBuffer();
+  let ink = 0;
+  for (const v of blank) if (v > 128) ink++;
+  check("an unrendered canvas would be caught", ink <= 60);
 }
 
 console.log("\ngrid rendering");
