@@ -36,6 +36,31 @@ export type DoorDetection = {
   bbox?: DoorBox;
   /** How the box was arrived at — surfaced in the API for debugging. */
   stage: "refined" | "coarse" | "none";
+  /** Populated only when explicitly requested; see DetectOptions.trace. */
+  trace?: DoorTrace;
+};
+
+/**
+ * Everything the two passes saw and said. Offline tests cannot catch a fault in
+ * how the grid is *drawn* — their oracle computes cell references rather than
+ * reading the rendered labels — so being able to pull the exact images the model
+ * was shown, alongside its replies, is the only way to tell a rendering fault
+ * apart from a judgement one.
+ */
+export type DoorTrace = {
+  coarseReply?: Record<string, unknown>;
+  coarseBox?: DoorBox;
+  crop?: DoorBox;
+  fineReply?: Record<string, unknown>;
+  fineBox?: DoorBox;
+  /** base64 PNGs of the gridded images actually sent to the model. */
+  coarseImage?: string;
+  fineImage?: string;
+};
+
+export type DetectOptions = {
+  /** Collect intermediate state. `images` also returns the gridded PNGs. */
+  trace?: boolean | "images";
 };
 
 export const COL_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWX".split("");
@@ -47,6 +72,14 @@ export const FINE_ROWS = 12;
 
 /** Longest edge, in px, of the images sent to the vision model. */
 const VISION_PX = 768;
+
+/**
+ * How far the refine crop reaches beyond the coarse box, as a fraction of it.
+ * Generous on purpose: if the true door falls outside the crop, the refine pass
+ * can only report an edge at the crop boundary, which turns a coarse-pass miss
+ * into a confidently wrong refined box.
+ */
+const CROP_MARGIN = 0.35;
 
 export const DOOR_VISION_MODEL = process.env.DOOR_VISION_MODEL || "gpt-4o";
 
@@ -328,8 +361,14 @@ export function boxFromCrop(inner: DoorBox, crop: DoorBox): DoorBox {
  * Locate the garage door. Never throws: on any failure it returns the best
  * result it reached, and `stage` says how far it got.
  */
-export async function detectDoor(image: Buffer, vision: VisionCaller): Promise<DoorDetection> {
-  const fallback: DoorDetection = { widthClass: "double", heightClass: "standard", stage: "none" };
+export async function detectDoor(
+  image: Buffer,
+  vision: VisionCaller,
+  opts: DetectOptions = {}
+): Promise<DoorDetection> {
+  const trace: DoorTrace | undefined = opts.trace ? {} : undefined;
+  const keepImages = opts.trace === "images";
+  const fallback: DoorDetection = { widthClass: "double", heightClass: "standard", stage: "none", trace };
 
   let coarse: Record<string, unknown>;
   try {
@@ -340,7 +379,9 @@ export async function detectDoor(image: Buffer, vision: VisionCaller): Promise<D
       .png()
       .toBuffer();
     const gridded = await renderGrid(small, COARSE_COLS, COARSE_ROWS);
+    if (trace && keepImages) trace.coarseImage = gridded.toString("base64");
     coarse = parseJson(await vision(gridded.toString("base64"), COARSE_PROMPT));
+    if (trace) trace.coarseReply = coarse;
   } catch (err) {
     console.warn("[door-detect] coarse pass failed:", err);
     return fallback;
@@ -348,7 +389,7 @@ export async function detectDoor(image: Buffer, vision: VisionCaller): Promise<D
 
   const widthClass = coarse.widthClass === "single" ? "single" : "double";
   const heightClass = coarse.heightClass === "tall" ? "tall" : "standard";
-  const base: DoorDetection = { widthClass, heightClass, stage: "none" };
+  const base: DoorDetection = { widthClass, heightClass, stage: "none", trace };
 
   const coarseBox = cellsToBox(
     colIndex(coarse.leftCol),
@@ -363,13 +404,15 @@ export async function detectDoor(image: Buffer, vision: VisionCaller): Promise<D
     console.warn("[door-detect] no usable coarse box:", JSON.stringify(coarse).slice(0, 200));
     return base;
   }
+  if (trace) trace.coarseBox = coarseBox;
   console.info(
     `[door-detect] coarse ${JSON.stringify(coarseBox)} doorCount=${coarse.doorCount} where=${String(coarse.where).slice(0, 120)}`
   );
 
   // Refine against a crop. The margin gives the model room to see the real
   // edges even when the coarse box clipped them.
-  const crop = expandBox(coarseBox, 0.35);
+  const crop = expandBox(coarseBox, CROP_MARGIN);
+  if (trace) trace.crop = crop;
   try {
     const meta = await sharp(image).metadata();
     const W = meta.width!;
@@ -390,7 +433,9 @@ export async function detectDoor(image: Buffer, vision: VisionCaller): Promise<D
       .toBuffer();
 
     const gridded = await renderGrid(cropped, FINE_COLS, FINE_ROWS);
+    if (trace && keepImages) trace.fineImage = gridded.toString("base64");
     const fine = parseJson(await vision(gridded.toString("base64"), FINE_PROMPT));
+    if (trace) trace.fineReply = fine;
 
     const innerBox = cellsToBox(
       colIndex(fine.leftCol),
@@ -401,6 +446,7 @@ export async function detectDoor(image: Buffer, vision: VisionCaller): Promise<D
       FINE_ROWS
     );
     if (innerBox) {
+      if (trace) trace.fineBox = innerBox;
       const refined = boxFromCrop(innerBox, crop);
       const checked = validateDoorBox(refined.x, refined.x + refined.w, refined.y, refined.y + refined.h);
       if (checked) {

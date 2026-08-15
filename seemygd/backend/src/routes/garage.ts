@@ -132,7 +132,12 @@ garageRouter.post("/detect", async (c) => {
   const rawBuffer = Buffer.from(await image.arrayBuffer());
   const processedBuffer = await sharp(rawBuffer).rotate().png().toBuffer();
 
-  const doorSize = await detectDoor(processedBuffer, openaiVision(openaiBase, openaiKey));
+  // ?debug=1 returns what each pass saw and said; ?debug=images also returns the
+  // gridded PNGs. Diagnostic only — the normal response is unchanged.
+  const debug = c.req.query("debug");
+  const doorSize = await detectDoor(processedBuffer, openaiVision(openaiBase, openaiKey), {
+    trace: debug === "images" ? "images" : debug ? true : undefined,
+  });
   return c.json({ data: doorSize });
 });
 
