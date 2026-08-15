@@ -51,7 +51,6 @@ export type DoorTrace = {
   coarseReply?: Record<string, unknown>;
   coarseBox?: DoorBox;
   crop?: DoorBox;
-  centre?: { x: number; y: number };
   fineReply?: Record<string, unknown>;
   fineBox?: DoorBox;
   /** base64 PNGs of the gridded images actually sent to the model. */
@@ -142,8 +141,7 @@ export function fontsUsable(): Promise<boolean> {
 export async function renderGrid(
   input: Buffer,
   cols: number,
-  rows: number,
-  marker?: { x: number; y: number }
+  rows: number
 ): Promise<Buffer> {
   const meta = await sharp(input).metadata();
   const W = meta.width!;
@@ -202,25 +200,6 @@ export async function renderGrid(
         `<text x="${tx}" y="${y}" font-family="sans-serif" font-size="${es}" fill="#0FF" text-anchor="middle" dominant-baseline="central" font-weight="bold">${r + 1}</text>`
       );
     }
-  }
-
-  // Marker identifying which door to measure. A crop sized to one door routinely
-  // catches its neighbour, and words alone ("the door in the middle") do not
-  // reliably beat the model's pull toward bounding everything door-like it can
-  // see — on a two-door house it returned one box spanning both. Pointing at the
-  // door is the same trick as the grid: put the reference in the image.
-  if (marker) {
-    const r = Math.max(10, Math.round(Math.min(W, H) * 0.045));
-    const mx = marker.x * W;
-    const my = marker.y * H;
-    parts.push(
-      `<circle cx="${mx}" cy="${my}" r="${r}" fill="none" stroke="#00FF00" stroke-width="4"/>`,
-      `<circle cx="${mx}" cy="${my}" r="${Math.round(r * 0.16)}" fill="#00FF00"/>`,
-      `<line x1="${mx - r * 1.6}" y1="${my}" x2="${mx - r * 1.15}" y2="${my}" stroke="#00FF00" stroke-width="4"/>`,
-      `<line x1="${mx + r * 1.15}" y1="${my}" x2="${mx + r * 1.6}" y2="${my}" stroke="#00FF00" stroke-width="4"/>`,
-      `<line x1="${mx}" y1="${my - r * 1.6}" x2="${mx}" y2="${my - r * 1.15}" stroke="#00FF00" stroke-width="4"/>`,
-      `<line x1="${mx}" y1="${my + r * 1.15}" x2="${mx}" y2="${my + r * 1.6}" stroke="#00FF00" stroke-width="4"/>`
-    );
   }
 
   const svg = Buffer.from(`<svg width="${W}" height="${H}">${parts.join("")}</svg>`);
@@ -290,15 +269,10 @@ const COARSE_PROMPT = [
   "including its frame and trim, and nothing else — not the driveway below it,",
   "not the wall or siding beside it, not the roof above it.",
   "",
-  "leftCol and rightCol must bracket only the door you name in `where`. If they",
-  "span two doors, or a door plus the wall next to it, they are wrong.",
-  "For bottomRow, use where the door meets the ground, not the lowest panel seam.",
-  "",
   "Reply with JSON only, no prose and no markdown fence, with these keys:",
   '  doorCount   - how many separate garage doors you can see (number)',
   '  where       - one short sentence naming the door you chose and what is',
   "                immediately left and right of it, so your choice is checkable",
-  '  centreCell  - the single cell at the middle of the door you chose, e.g. F6',
   '  leftCol     - column letter where the door\'s left edge falls',
   '  rightCol    - column letter where the door\'s right edge falls',
   '  topRow      - row number where the top of the door frame falls',
@@ -311,23 +285,19 @@ const COARSE_PROMPT = [
 ].join("\n");
 
 const FINE_PROMPT = [
-  "This is a close crop around one garage door, with a labelled grid drawn over it.",
+  "This is a close crop around a garage door, with a labelled grid drawn over it.",
   `Columns are lettered A-${COL_LABELS[FINE_COLS - 1]} left to right; rows are numbered 1-${FINE_ROWS} top to bottom.`,
   "",
-  "A green circular marker is drawn on the door you must measure.",
+  "The door is the large panelled rectangle. Locate its four outer edges precisely,",
+  "including the door frame and trim but excluding the driveway, the walls to",
+  "either side, and anything above the frame.",
   "",
-  "IMPORTANT: a neighbouring garage door is often partly visible near the left or",
-  "right edge of this crop. Ignore it completely. Measure only the one door under",
-  "the green marker. Your box must stop at that door's own frame — if it contains",
-  "two doors, or a door and part of another, it is wrong.",
-  "",
-  "Locate that door's four outer edges, including its frame and trim.",
   "For each edge, name the single grid cell the edge passes through.",
   "",
   "Reply with JSON only, no prose and no markdown fence, with these keys:",
-  '  leftCol   - column letter the door\'s left edge passes through',
-  '  rightCol  - column letter the door\'s right edge passes through',
-  '  topRow    - row number the top of the door frame passes through',
+  '  leftCol   - column letter the left edge of the door passes through',
+  '  rightCol  - column letter the right edge of the door passes through',
+  '  topRow    - row number the top edge of the door frame passes through',
   '  bottomRow - row number where the bottom of the door meets the ground',
   "",
   "For bottomRow, find where the door panel actually ends and the driveway begins.",
@@ -335,7 +305,7 @@ const FINE_PROMPT = [
   "the door. Equally, do not stop at the lowest panel seam — the door continues",
   "below it to the ground.",
   "",
-  "If there is no garage door under the marker, set all four to null.",
+  "If the crop does not actually contain a garage door, set all four to null.",
 ].join("\n");
 
 // --- vision plumbing -------------------------------------------------------
@@ -418,21 +388,6 @@ export function cellsToBox(
   return validateDoorBox(l, r, t, b);
 }
 
-/**
- * Centre point of a cell reference like "F6", as fractions of the image.
- * Returns undefined if either half is unparseable or out of range.
- */
-export function centreOfCell(
-  ref: unknown,
-  cols: number,
-  rows: number
-): { x: number; y: number } | undefined {
-  const c = colIndex(ref);
-  const r = rowIndex(ref);
-  if (c < 0 || r < 0 || c >= cols || r >= rows) return undefined;
-  return { x: (c + 0.5) / cols, y: (r + 0.5) / rows };
-}
-
 /** Grow a box by `pad` of its own size, clamped to the frame. */
 export function expandBox(b: DoorBox, pad: number): DoorBox {
   const x = Math.max(0, b.x - b.w * pad);
@@ -443,16 +398,6 @@ export function expandBox(b: DoorBox, pad: number): DoorBox {
     w: Math.min(1 - x, b.w * (1 + pad * 2)),
     h: Math.min(1 - y, b.h * (1 + pad * 2)),
   };
-}
-
-/** Widen a box just enough to contain `p`, with a little slack, clamped to the frame. */
-export function includePoint(b: DoorBox, p: { x: number; y: number }): DoorBox {
-  const slack = 0.02;
-  const x1 = Math.max(0, Math.min(b.x, p.x - slack));
-  const y1 = Math.max(0, Math.min(b.y, p.y - slack));
-  const x2 = Math.min(1, Math.max(b.x + b.w, p.x + slack));
-  const y2 = Math.min(1, Math.max(b.y + b.h, p.y + slack));
-  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
 }
 
 /** Map a box expressed inside `crop` back into full-image coordinates. */
@@ -520,20 +465,10 @@ export async function detectDoor(
     `[door-detect] coarse ${JSON.stringify(coarseBox)} doorCount=${coarse.doorCount} where=${String(coarse.where).slice(0, 120)}`
   );
 
-  const centre = centreOfCell(coarse.centreCell, COARSE_COLS, COARSE_ROWS) ?? {
-    x: coarseBox.x + coarseBox.w / 2,
-    y: coarseBox.y + coarseBox.h / 2,
-  };
-
   // Refine against a crop. The margin gives the model room to see the real
-  // edges even when the coarse box clipped them, and the crop is widened again
-  // if needed so the marked centre is always inside it — a marker outside the
-  // crop cannot point at anything.
-  const crop = includePoint(expandBox(coarseBox, CROP_MARGIN), centre);
-  if (trace) {
-    trace.crop = crop;
-    trace.centre = centre;
-  }
+  // edges even when the coarse box clipped them.
+  const crop = expandBox(coarseBox, CROP_MARGIN);
+  if (trace) trace.crop = crop;
   try {
     const meta = await sharp(image).metadata();
     const W = meta.width!;
@@ -553,19 +488,7 @@ export async function detectDoor(
       .png()
       .toBuffer();
 
-    // Mark the coarse pass's door inside the crop, so the refine pass measures
-    // the door the coarse pass chose rather than whatever else is in frame.
-    //
-    // Prefer the explicitly reported centre cell over the centre of the coarse
-    // box. Naming one cell is a far easier judgement than placing four edges,
-    // and when the two disagree it is the box that is usually wrong: on a
-    // two-door house the box spanned both doors, putting its centre on the post
-    // between them — a marker there points at no door at all.
-    const marker = {
-      x: (centre.x - crop.x) / crop.w,
-      y: (centre.y - crop.y) / crop.h,
-    };
-    const gridded = await renderGrid(cropped, FINE_COLS, FINE_ROWS, marker);
+    const gridded = await renderGrid(cropped, FINE_COLS, FINE_ROWS);
     if (trace && keepImages) trace.fineImage = gridded.toString("base64");
     const fine = parseJson(await vision(gridded.toString("base64"), FINE_PROMPT));
     if (trace) trace.fineReply = fine;

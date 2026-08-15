@@ -24,8 +24,6 @@ import {
   detectDoor,
   expandBox,
   renderGrid,
-  centreOfCell,
-  includePoint,
   rowIndex,
   textRenders,
   validateDoorBox,
@@ -90,19 +88,6 @@ check("cellsToBox rejects unparsed (-1)", !cellsToBox(-1, 5, 2, 6, 12, 8));
 check("expandBox clamps at frame", (() => {
   const b = expandBox({ x: 0.05, y: 0.9, w: 0.2, h: 0.08 }, 0.5);
   return b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.0000001 && b.y + b.h <= 1.0000001;
-})());
-check("centreOfCell F6", (() => {
-  const c = centreOfCell("F6", 12, 8);
-  return !!c && near(c.x, 5.5 / 12, 1e-9) && near(c.y, 5.5 / 8, 1e-9);
-})());
-check("centreOfCell rejects out-of-range", !centreOfCell("Z9", 12, 8) && !centreOfCell("", 12, 8));
-check("includePoint widens to contain the point", (() => {
-  const b = includePoint({ x: 0.4, y: 0.4, w: 0.2, h: 0.2 }, { x: 0.8, y: 0.1 });
-  return b.x <= 0.4 && b.y <= 0.08 && b.x + b.w >= 0.82 && b.y + b.h >= 0.6;
-})());
-check("includePoint leaves a containing box alone", (() => {
-  const b = includePoint({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 }, { x: 0.5, y: 0.5 });
-  return near(b.x, 0.2, 1e-9) && near(b.w, 0.6, 1e-9);
 })());
 check("boxFromCrop round-trips", (() => {
   const crop = { x: 0.2, y: 0.4, w: 0.5, h: 0.5 };
