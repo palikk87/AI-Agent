@@ -104,8 +104,20 @@ Grandview took a browser to settle: its host answers automated requests with a
 captcha, so a scan from a sandbox reads identically to an empty site. Worth
 remembering the next time a scan reports "nothing found" on a protected host.
 
-Note: A Rated Garage Doors has no `websiteUrl` set on its company record, so
-there is no site on file to check for that tenant.
+Note: A Rated Garage Doors has no `websiteUrl` set on its company record. Its
+real domain is **aratedgd.com** — recorded here so the value is not lost. Not
+applied: this is a data-quality fix, deliberately parked, and nobody should be
+editing tenant records as a side effect of a cutover.
+
+## Parked — known, deliberately not fixed here
+
+**Cold-start makes the widget inert on first click.** `embed.js` is deferred and
+served from an instance that spins down, so on a cold hit a visitor can press
+"Visualize My Door" for several seconds and get nothing at all. Observed on a
+real tenant site: first attempt inert, second attempt fine. That is a conversion
+and credibility problem on customer sites, not a cosmetic one, and it wants a
+real fix (keeping the instance warm, or making the button show progress and
+survive a slow script) rather than a workaround. Left open on purpose.
 
 ## 3. `visualizer.941garagedoor.com`
 
