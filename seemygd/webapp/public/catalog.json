@@ -1,0 +1,1022 @@
+{
+  "manufacturers": [
+    {
+      "id": "clopay",
+      "name": "Clopay",
+      "tagline": "America's favorite garage doors",
+      "origin": "Troy, Ohio \u00b7 est. 1964"
+    },
+    {
+      "id": "chi",
+      "name": "C.H.I.",
+      "tagline": "Overhead doors built to last",
+      "origin": "Arthur, Illinois \u00b7 est. 1981"
+    },
+    {
+      "id": "amarr",
+      "name": "Amarr",
+      "tagline": "Designer doors for every home",
+      "origin": "Winston-Salem, NC \u00b7 est. 1951"
+    },
+    {
+      "id": "wayne-dalton",
+      "name": "Wayne Dalton",
+      "tagline": "Beautiful, durable doors since 1954",
+      "origin": "Mt. Hope, Ohio \u00b7 est. 1954"
+    },
+    {
+      "id": "haas",
+      "name": "Haas",
+      "tagline": "Family-built doors with character",
+      "origin": "Wakarusa, Indiana \u00b7 est. 1973"
+    }
+  ],
+  "styles": [
+    {
+      "id": "clopay-avante",
+      "manufacturer": "clopay",
+      "name": "Avante",
+      "series": "Modern Aluminum + Glass",
+      "tagline": "Architectural full-view with crisp aluminum frame",
+      "category": "contemporary",
+      "prompt": "a Clopay Avante full-view garage door with a slim aluminum frame in a clean grid of square glass panels, contemporary minimalist look, premium finish",
+      "catalogUrl": "https://www.clopaydoor.com/garagedoors/residential/aluminum-and-glass/avante",
+      "swatch": {
+        "panel": "#cfd4d6",
+        "trim": "#8a8e90",
+        "accent": "#1d1d1f"
+      },
+      "colors": [
+        {
+          "id": "black-frame",
+          "name": "Black Frame",
+          "hex": "#1C1C1C"
+        },
+        {
+          "id": "dark-bronze-frame",
+          "name": "Dark Bronze Frame",
+          "hex": "#3E2B18"
+        },
+        {
+          "id": "silver-frame",
+          "name": "Silver/Anodized Frame",
+          "hex": "#A8AAAD"
+        },
+        {
+          "id": "white-frame",
+          "name": "White Frame",
+          "hex": "#F2F0EB"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "clear-glass",
+          "name": "Clear Glass"
+        },
+        {
+          "id": "frosted-glass",
+          "name": "Frosted Glass"
+        },
+        {
+          "id": "tinted-bronze",
+          "name": "Tinted Bronze Glass"
+        },
+        {
+          "id": "obscure-glass",
+          "name": "Obscure Glass"
+        }
+      ]
+    },
+    {
+      "id": "clopay-modern-steel",
+      "manufacturer": "clopay",
+      "name": "Modern Steel",
+      "series": "Flush Smooth",
+      "tagline": "Sleek flush panel in matte finish",
+      "category": "modern",
+      "prompt": "a Clopay Modern Steel flush smooth garage door, no visible seams between panels, ultra-clean modern aesthetic, premium painted finish",
+      "catalogUrl": "https://www.clopaydoor.com/garagedoors/residential/flush/modern-steel",
+      "swatch": {
+        "panel": "#22252a",
+        "trim": "#101114",
+        "accent": "#e9e9e9"
+      },
+      "colors": [
+        {
+          "id": "matte-black",
+          "name": "Matte Black",
+          "hex": "#1C1C1C"
+        },
+        {
+          "id": "charcoal",
+          "name": "Charcoal",
+          "hex": "#3A3D42"
+        },
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "dark-bronze",
+          "name": "Dark Bronze",
+          "hex": "#3E2B18"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "frosted-row",
+          "name": "Frosted Glass Row"
+        },
+        {
+          "id": "clear-row",
+          "name": "Clear Glass Row"
+        },
+        {
+          "id": "square-row",
+          "name": "Square Window Row"
+        }
+      ]
+    },
+    {
+      "id": "clopay-canyon-ridge",
+      "manufacturer": "clopay",
+      "name": "Canyon Ridge",
+      "series": "Faux Wood Carriage",
+      "tagline": "Composite carriage with rich wood grain",
+      "category": "carriage",
+      "prompt": "a Clopay Canyon Ridge faux-wood carriage house garage door with a deep wood-grain composite overlay, cross-buck design, wrought iron decorative hardware",
+      "catalogUrl": "https://www.clopaydoor.com/garagedoors/residential/ultra-grain-composite/canyon-ridge",
+      "swatch": {
+        "panel": "#5a3a22",
+        "trim": "#2f1d10",
+        "accent": "#111111"
+      },
+      "colors": [
+        {
+          "id": "dark-walnut",
+          "name": "Dark Walnut",
+          "hex": "#3D2012"
+        },
+        {
+          "id": "medium-oak",
+          "name": "Medium Oak",
+          "hex": "#8B5C2A"
+        },
+        {
+          "id": "golden-oak",
+          "name": "Golden Oak",
+          "hex": "#B8822E"
+        },
+        {
+          "id": "white-cedar",
+          "name": "White Cedar",
+          "hex": "#E8E0D5"
+        },
+        {
+          "id": "slate",
+          "name": "Slate Gray",
+          "hex": "#5A5E62"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "square-arch",
+          "name": "Square Arch Windows"
+        },
+        {
+          "id": "cathedral",
+          "name": "Cathedral Windows"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Windows"
+        }
+      ]
+    },
+    {
+      "id": "clopay-coachman",
+      "manufacturer": "clopay",
+      "name": "Coachman",
+      "series": "Steel Carriage",
+      "tagline": "Classic carriage charm, painted steel",
+      "category": "carriage",
+      "prompt": "a Clopay Coachman painted steel carriage house garage door, raised carriage panel design, decorative black handles and hinges, traditional look",
+      "catalogUrl": "https://www.clopaydoor.com/garagedoors/residential/carriage-house-style/coachman",
+      "swatch": {
+        "panel": "#f4f1eb",
+        "trim": "#dad6cd",
+        "accent": "#1a1a1a"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "almond",
+          "name": "Almond",
+          "hex": "#E8D9B8"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "medium-bronze",
+          "name": "Medium Bronze",
+          "hex": "#7A5C3A"
+        },
+        {
+          "id": "dark-bronze",
+          "name": "Dark Bronze",
+          "hex": "#3E2B18"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "short-rectangle",
+          "name": "Short Rectangle"
+        },
+        {
+          "id": "arch-top",
+          "name": "Arch Top"
+        },
+        {
+          "id": "ranch-style",
+          "name": "Ranch Style"
+        }
+      ]
+    },
+    {
+      "id": "chi-planks-accents",
+      "manufacturer": "chi",
+      "name": "Planks",
+      "series": "Accents Woodtones",
+      "tagline": "Horizontal plank wood-grain look",
+      "category": "contemporary",
+      "prompt": "a CHI Accents Planks garage door with a horizontal wood-grain plank finish, wide plank sections, modern rustic vibe",
+      "catalogUrl": "https://www.chiohd.com/products/sectional-garage-doors/wood-composite/accents-woodtones",
+      "swatch": {
+        "panel": "#6b3a1d",
+        "trim": "#3b1d0d",
+        "accent": "#d9c9a8"
+      },
+      "colors": [
+        {
+          "id": "mahogany",
+          "name": "Mahogany",
+          "hex": "#6B2E1A"
+        },
+        {
+          "id": "golden-oak",
+          "name": "Golden Oak",
+          "hex": "#B8822E"
+        },
+        {
+          "id": "walnut",
+          "name": "Dark Walnut",
+          "hex": "#3D2012"
+        },
+        {
+          "id": "slate",
+          "name": "Slate Gray",
+          "hex": "#5A5E62"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "upper-row-rectangle",
+          "name": "Upper Row Rectangles"
+        },
+        {
+          "id": "upper-row-arch",
+          "name": "Upper Row Arch"
+        }
+      ]
+    },
+    {
+      "id": "chi-stamped-carriage",
+      "manufacturer": "chi",
+      "name": "Stamped Carriage",
+      "series": "5983 Series",
+      "tagline": "Embossed carriage panel, classic styling",
+      "category": "carriage",
+      "prompt": "a CHI Stamped Carriage House garage door, embossed steel with carriage X-cross stamping per section, arched window row with decorative grilles",
+      "catalogUrl": "https://www.chiohd.com/products/sectional-garage-doors/steel-carriage-house",
+      "swatch": {
+        "panel": "#e6d6b8",
+        "trim": "#a8966f",
+        "accent": "#241a10"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "almond",
+          "name": "Almond",
+          "hex": "#E8D9B8"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "brown",
+          "name": "Brown",
+          "hex": "#6B4423"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "arched",
+          "name": "Arched Windows"
+        },
+        {
+          "id": "rectangle",
+          "name": "Rectangle Windows"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Windows"
+        }
+      ]
+    },
+    {
+      "id": "chi-recessed-panel",
+      "manufacturer": "chi",
+      "name": "Recessed Panel",
+      "series": "2240 Steel",
+      "tagline": "Clean recessed long panels, refined look",
+      "category": "modern",
+      "prompt": "a CHI 2240 recessed long panel garage door, smooth finish, contemporary refined appearance",
+      "catalogUrl": "https://www.chiohd.com/products/sectional-garage-doors/steel/2240",
+      "swatch": {
+        "panel": "#3a3d40",
+        "trim": "#1f2123",
+        "accent": "#cccccc"
+      },
+      "colors": [
+        {
+          "id": "graphite",
+          "name": "Graphite",
+          "hex": "#3A3D42"
+        },
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "brown",
+          "name": "Brown",
+          "hex": "#6B4423"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "frosted-row",
+          "name": "Frosted Glass Row"
+        },
+        {
+          "id": "clear-row",
+          "name": "Clear Glass Row"
+        }
+      ]
+    },
+    {
+      "id": "amarr-vista",
+      "manufacturer": "amarr",
+      "name": "Vista",
+      "series": "Full-View Aluminum",
+      "tagline": "Floor-to-ceiling glass, premium modern look",
+      "category": "contemporary",
+      "prompt": "an Amarr Vista full-view aluminum garage door with a large clear glass panel grid, premium modern architectural look",
+      "catalogUrl": "https://www.amarr.com/residential/garage-doors/full-view",
+      "swatch": {
+        "panel": "#dde2e6",
+        "trim": "#1a1a1a",
+        "accent": "#0a0a0a"
+      },
+      "colors": [
+        {
+          "id": "black-frame",
+          "name": "Black Frame",
+          "hex": "#1C1C1C"
+        },
+        {
+          "id": "dark-bronze-frame",
+          "name": "Dark Bronze Frame",
+          "hex": "#3E2B18"
+        },
+        {
+          "id": "silver-frame",
+          "name": "Silver/Anodized Frame",
+          "hex": "#A8AAAD"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "clear-glass",
+          "name": "Clear Glass"
+        },
+        {
+          "id": "frosted-glass",
+          "name": "Frosted Glass"
+        },
+        {
+          "id": "tinted-glass",
+          "name": "Tinted Bronze Glass"
+        }
+      ]
+    },
+    {
+      "id": "amarr-classica",
+      "manufacturer": "amarr",
+      "name": "Classica",
+      "series": "Carriage House",
+      "tagline": "Old-world carriage with arched glass",
+      "category": "carriage",
+      "prompt": "an Amarr Classica carriage house garage door, arched top windows with decorative grille inserts, raised carriage panel design, wrought iron strap hinges and handles",
+      "catalogUrl": "https://www.amarr.com/residential/garage-doors/carriage-house/amarr-classica",
+      "swatch": {
+        "panel": "#d4b88a",
+        "trim": "#7a5a30",
+        "accent": "#0e0e0e"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "almond",
+          "name": "Almond",
+          "hex": "#E8D9B8"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "brown",
+          "name": "Brown",
+          "hex": "#7D5A3C"
+        },
+        {
+          "id": "chocolate",
+          "name": "Chocolate",
+          "hex": "#3E2309"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "arched-short",
+          "name": "Short Arch Windows"
+        },
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Windows"
+        },
+        {
+          "id": "rectangle",
+          "name": "Rectangle Windows"
+        }
+      ]
+    },
+    {
+      "id": "amarr-hillcrest",
+      "manufacturer": "amarr",
+      "name": "Hillcrest",
+      "series": "Modern Steel",
+      "tagline": "Modern flush with frosted glass row",
+      "category": "modern",
+      "prompt": "an Amarr Hillcrest modern flush steel garage door, single horizontal row of long frosted rectangular glass panels near the top, ultra-clean minimalist design",
+      "catalogUrl": "https://www.amarr.com/residential/garage-doors/modern",
+      "swatch": {
+        "panel": "#efeae0",
+        "trim": "#bdb6a8",
+        "accent": "#1e1e1e"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "pebble",
+          "name": "Pebble Gray",
+          "hex": "#9B9B9B"
+        },
+        {
+          "id": "charcoal",
+          "name": "Charcoal",
+          "hex": "#4A4A4A"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "frosted-band",
+          "name": "Frosted Glass Band"
+        },
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "clear-band",
+          "name": "Clear Glass Band"
+        },
+        {
+          "id": "square-row",
+          "name": "Square Window Row"
+        }
+      ]
+    },
+    {
+      "id": "amarr-lincoln",
+      "manufacturer": "amarr",
+      "name": "Lincoln",
+      "series": "Traditional Steel",
+      "tagline": "Classic raised long panel, timeless look",
+      "category": "traditional",
+      "prompt": "an Amarr Lincoln traditional raised long panel garage door, four horizontal sections",
+      "catalogUrl": "https://www.amarr.com/residential/garage-doors/residential/amarr-lincoln",
+      "swatch": {
+        "panel": "#f6f4ef",
+        "trim": "#cbc6bb",
+        "accent": "#26201a"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "almond",
+          "name": "Almond",
+          "hex": "#E8D9B8"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "brown",
+          "name": "Brown",
+          "hex": "#7D5A3C"
+        },
+        {
+          "id": "chocolate",
+          "name": "Chocolate",
+          "hex": "#3E2309"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "short-rectangle",
+          "name": "Short Rectangle"
+        },
+        {
+          "id": "cathedral",
+          "name": "Cathedral"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Style"
+        },
+        {
+          "id": "colonial",
+          "name": "Colonial"
+        }
+      ]
+    },
+    {
+      "id": "wayne-dalton-8800",
+      "manufacturer": "wayne-dalton",
+      "name": "Model 8800",
+      "series": "Luminous Full-View",
+      "tagline": "Full-view aluminum, glowing modern statement",
+      "category": "contemporary",
+      "prompt": "a Wayne Dalton Model 8800 Luminous full-view garage door with an aluminum frame and translucent acrylic panels, glowing modern statement piece",
+      "catalogUrl": "https://www.waynedalton.com/residential/model/8800",
+      "swatch": {
+        "panel": "#b9a78a",
+        "trim": "#3a2f1e",
+        "accent": "#0f0a05"
+      },
+      "colors": [
+        {
+          "id": "dark-bronze-frame",
+          "name": "Dark Bronze Frame",
+          "hex": "#3E2B18"
+        },
+        {
+          "id": "black-frame",
+          "name": "Black Frame",
+          "hex": "#1C1C1C"
+        },
+        {
+          "id": "silver-frame",
+          "name": "Silver Frame",
+          "hex": "#A8AAAD"
+        },
+        {
+          "id": "white-frame",
+          "name": "White Frame",
+          "hex": "#F2F0EB"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "translucent",
+          "name": "Translucent Panels"
+        },
+        {
+          "id": "clear",
+          "name": "Clear Glass Panels"
+        },
+        {
+          "id": "frosted",
+          "name": "Frosted Panels"
+        }
+      ]
+    },
+    {
+      "id": "wayne-dalton-9700",
+      "manufacturer": "wayne-dalton",
+      "name": "Model 9700",
+      "series": "Wood Carriage",
+      "tagline": "Hand-crafted cedar carriage door",
+      "category": "carriage",
+      "prompt": "a Wayne Dalton Model 9700 cedar wood carriage house garage door, visible vertical plank grain, black wrought iron handles and strap hinges",
+      "catalogUrl": "https://www.waynedalton.com/residential/model/9700",
+      "swatch": {
+        "panel": "#9a6a36",
+        "trim": "#5a3b1c",
+        "accent": "#0e0e0e"
+      },
+      "colors": [
+        {
+          "id": "natural-cedar",
+          "name": "Natural Cedar",
+          "hex": "#C08A50"
+        },
+        {
+          "id": "honey-stain",
+          "name": "Honey Stain",
+          "hex": "#B8822E"
+        },
+        {
+          "id": "medium-oak",
+          "name": "Medium Oak Stain",
+          "hex": "#8B5C2A"
+        },
+        {
+          "id": "dark-walnut",
+          "name": "Dark Walnut Stain",
+          "hex": "#3D2012"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "arched",
+          "name": "Arched Windows"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Windows"
+        },
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        }
+      ]
+    },
+    {
+      "id": "wayne-dalton-9100",
+      "manufacturer": "wayne-dalton",
+      "name": "Model 9100",
+      "series": "Steel Raised Panel",
+      "tagline": "Traditional raised short panel",
+      "category": "traditional",
+      "prompt": "a Wayne Dalton Model 9100 traditional raised short panel steel garage door, four rows of small raised rectangular panels, timeless suburban look",
+      "catalogUrl": "https://www.waynedalton.com/residential/model/9100",
+      "swatch": {
+        "panel": "#e8dcc1",
+        "trim": "#b8a784",
+        "accent": "#241a0f"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "desert-tan",
+          "name": "Desert Tan",
+          "hex": "#C4A46A"
+        },
+        {
+          "id": "charcoal",
+          "name": "Charcoal",
+          "hex": "#4A4A4A"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "short-rectangle",
+          "name": "Short Rectangle"
+        },
+        {
+          "id": "arch-top",
+          "name": "Arch Top"
+        }
+      ]
+    },
+    {
+      "id": "haas-700",
+      "manufacturer": "haas",
+      "name": "700 Series",
+      "series": "Flush Modern Steel",
+      "tagline": "Insulated flush, premium contemporary finish",
+      "category": "modern",
+      "prompt": "a Haas 700 Series modern flush steel garage door, completely smooth surface, no visible joint lines, premium contemporary finish",
+      "catalogUrl": "https://haasdoor.com/product/700-series/",
+      "swatch": {
+        "panel": "#525860",
+        "trim": "#2c3036",
+        "accent": "#dadde0"
+      },
+      "colors": [
+        {
+          "id": "slate-gray",
+          "name": "Slate Gray",
+          "hex": "#525860"
+        },
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "charcoal",
+          "name": "Charcoal",
+          "hex": "#4A4A4A"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "frosted-square-row",
+          "name": "Frosted Square Row"
+        },
+        {
+          "id": "clear-row",
+          "name": "Clear Glass Row"
+        }
+      ]
+    },
+    {
+      "id": "haas-680",
+      "manufacturer": "haas",
+      "name": "680 Series",
+      "series": "Carriage House Steel",
+      "tagline": "Steel carriage with grooved plank look",
+      "category": "carriage",
+      "prompt": "a Haas 680 carriage house steel garage door, grooved vertical plank look mimicking real wood, black decorative carriage hardware",
+      "catalogUrl": "https://haasdoor.com/product/680-series/",
+      "swatch": {
+        "panel": "#7a2a23",
+        "trim": "#481712",
+        "accent": "#101010"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "chocolate",
+          "name": "Chocolate Brown",
+          "hex": "#3E2309"
+        },
+        {
+          "id": "barn-red",
+          "name": "Barn Red",
+          "hex": "#7A2A23"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "arch",
+          "name": "Arched Windows"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Windows"
+        },
+        {
+          "id": "rectangle",
+          "name": "Rectangle Windows"
+        }
+      ]
+    },
+    {
+      "id": "haas-600",
+      "manufacturer": "haas",
+      "name": "600 Series",
+      "series": "Traditional Insulated",
+      "tagline": "Long raised panel in classic colors",
+      "category": "traditional",
+      "prompt": "a Haas 600 Series traditional long raised panel insulated steel garage door, classic four-section design",
+      "catalogUrl": "https://haasdoor.com/product/600-series/",
+      "swatch": {
+        "panel": "#ddcfb4",
+        "trim": "#a59478",
+        "accent": "#2b2218"
+      },
+      "colors": [
+        {
+          "id": "white",
+          "name": "White",
+          "hex": "#F2F0EB"
+        },
+        {
+          "id": "cream",
+          "name": "Cream",
+          "hex": "#F0E8D0"
+        },
+        {
+          "id": "sandstone",
+          "name": "Sandstone",
+          "hex": "#C9B08B"
+        },
+        {
+          "id": "brown",
+          "name": "Brown",
+          "hex": "#6B4423"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "hex": "#1C1C1C"
+        }
+      ],
+      "windowOptions": [
+        {
+          "id": "no-windows",
+          "name": "No Windows"
+        },
+        {
+          "id": "short-rectangle",
+          "name": "Short Rectangle"
+        },
+        {
+          "id": "long-rectangle",
+          "name": "Long Rectangle"
+        },
+        {
+          "id": "ranch",
+          "name": "Ranch Style"
+        }
+      ]
+    }
+  ]
+}

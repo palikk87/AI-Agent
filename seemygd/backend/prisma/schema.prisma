@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Supabase pooled connection (port 6543, pgbouncer) — used at runtime.
+  url       = env("DATABASE_URL")
+  // Supabase direct connection (port 5432) — required for migrations, which
+  // pgbouncer's transaction pooling cannot run.
+  directUrl = env("DIRECT_URL")
+}
+
+model Company {
+  id                   String   @id @default(cuid())
+  businessName         String
+  websiteUrl           String?
+  logoUrl              String?
+  heroImageUrl         String?
+  primaryColorHex      String   @default("#2563EB")
+  contactPhone         String?
+  contactEmail         String?
+  vanitySlug           String?  @unique
+  customSubdomain      String?  @unique
+  customDomain         String?  @unique
+  // Whether this client may see & use their individualized visualizer URL
+  // (/v/:slug) in the dashboard. Defaults TRUE so every client that already
+  // exists when this column is added keeps their URL (grandfathered). NEW
+  // clients are created with this explicitly set to false (see onboard.complete
+  // and admin.create-user) so they only get the embed code.
+  individualUrlEnabled Boolean  @default(true)
+  tierType             String   @default("starter")
+  squareCustomerId     String?
+  squareCardId         String?
+  squareSubscriptionId String?
+  subscriptionStatus   String   @default("unpaid")
+  // Lead-notification email — where new quote/repair alerts are sent. Independent
+  // of the public contactEmail; blank by default (falls back to contactEmail).
+  notificationEmail    String?
+  resendApiKey         String?
+  resendFromEmail      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  users                User[]
+  leads                Lead[]
+  repairSettings       RepairSettings?
+}
+
+// Per-company Repair Estimator configuration.
+// The owner sets a handful of numbers (base prices + weight multipliers) and the
+// front end computes dynamic, dummy-proof pricing from the homeowner's answers.
+model RepairSettings {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  enabled         Boolean  @default(true)
+  // Multipliers applied on top of a repair's base price, based on the door the
+  // homeowner describes. Base price assumes a 1-Car / Standard-height / Hollow door.
+  twoCarMultiplier Float   @default(1.6)  // wider = ~1.6x a 1-car door
+  tallMultiplier   Float   @default(1.15) // 8ft+ tall doors
+  vinylMultiplier  Float   @default(1.15) // vinyl-back insulation
+  steelMultiplier  Float   @default(1.35) // steel-back insulation (heaviest)
+  serviceCallFee   Float   @default(0)    // flat trip/diagnostic fee added to every estimate
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  prices          RepairPrice[]
+}
+
+// Base price for a single repair item (keyed by repairKey from the shared catalog).
+model RepairPrice {
+  id         String   @id @default(cuid())
+  settingsId String
+  repairKey  String
+  basePrice  Float
+  enabled    Boolean  @default(true)
+  settings   RepairSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+
+  @@unique([settingsId, repairKey])
+}
+
+model User {
+  id            String    @id
+  companyId     String?
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          String    @default("admin")
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  company       Company?  @relation(fields: [companyId], references: [id])
+  sessions      Session[]
+  accounts      Account[]
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+model Lead {
+  id               String   @id @default(cuid())
+  companyId        String?
+  name             String?
+  email            String?
+  phone            String?
+  zipCode          String?
+  styleId          String?
+  styleName        String?
+  colorName        String?
+  manufacturerName String?
+  windowOption     String?
+  notes            String?
+  source           String?
+  beforeImageBase64  String?
+  afterImageBase64   String?
+  status           String   @default("new")
+  // Repair Estimator fields (null for design/visualizer leads).
+  serviceType      String?  // "design" | "repair"
+  estimateTotal    Float?   // estimated total for a repair request
+  repairSummary    String?  // human-readable summary of door config + selected repairs
+  createdAt        DateTime @default(now())
+  company          Company? @relation(fields: [companyId], references: [id])
+}

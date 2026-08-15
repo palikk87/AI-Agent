@@ -1,0 +1,55 @@
+#!/bin/bash
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# Boot the SeeMyGD API (Bun + Hono) against Supabase Postgres.
+#
+# Replaces the Vibecode-era script, which backed up a local SQLite file with
+# VACUUM INTO and called the Vibecode cloud API to enable a DB viewer. Neither
+# applies now: Supabase owns backups (Dashboard → Database → Backups) and the
+# SQL editor replaces the DB viewer.
+
+ENVIRONMENT="${ENVIRONMENT:-development}"
+
+if [[ "${ENVIRONMENT}" == "production" ]]; then
+  echo "Starting in production mode..."
+  export NODE_ENV="production"
+else
+  echo "Starting in development mode..."
+  export NODE_ENV="development"
+fi
+
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  echo "ERROR: DATABASE_URL is not set."
+  echo "Set it to the Supabase pooled connection string (port 6543)."
+  echo "See MIGRATION.md for where to copy it from."
+  exit 1
+fi
+
+# Install dependencies
+echo "Installing dependencies..."
+bun install
+
+# Prisma client + schema
+echo "Generating Prisma client..."
+bunx prisma generate
+
+if [[ "${ENVIRONMENT}" == "production" ]]; then
+  # Versioned migrations in production — never --accept-data-loss against real
+  # customer data.
+  echo "Applying migrations..."
+  bunx prisma migrate deploy
+else
+  echo "Pushing schema to database..."
+  bunx prisma db push
+fi
+
+# Start server. Use bun directly (not "bun run") so signals propagate correctly.
+if [[ "${ENVIRONMENT}" == "production" ]]; then
+  echo "Starting server in production mode..."
+  exec bun src/index.ts
+else
+  echo "Starting server in dev mode with hot reload..."
+  exec bun --hot src/index.ts
+fi

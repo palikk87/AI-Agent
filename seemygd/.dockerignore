@@ -1,0 +1,33 @@
+# Keep the build context small and the image clean.
+#
+# Without this, `COPY backend/ ./` and `COPY webapp/ ./` drag the host's
+# node_modules over the ones just installed inside the image (fragile — host
+# binaries and a host-generated Prisma client shadow the container's), ship a
+# stale webapp/dist that the build stage is meant to produce, and — worst —
+# bake any local .env straight into the image layers.
+
+**/node_modules
+**/dist
+**/dist-ssr
+
+# Secrets never belong in an image layer. .env.example is intentionally kept.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local databases — real accounts and customer data.
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+
+# Build/tooling noise
+**/.git
+**/*.log
+**/.cache
+**/.eslintcache
+**/*.tsbuildinfo
+**/.DS_Store
+**/.claude
+Dockerfile
+.dockerignore

@@ -1,0 +1,177 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 941 Garage Door — matched to 941garagedoor.com.
+   Deep navy primary, bold orange accent, cool near-white surface. All colors in HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 67% 99%;
+    --foreground: 215 80% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 80% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 80% 8%;
+
+    /* Deep navy — matches site --primary oklch(24% .06 255) */
+    --primary: 214 74% 13%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 212 42% 94%;
+    --secondary-foreground: 215 70% 14%;
+
+    --muted: 213 36% 95%;
+    --muted-foreground: 214 21% 29%;
+
+    /* Bold orange — matches site --accent oklch(72% .19 48) */
+    --accent: 25 100% 54%;
+    --accent-foreground: 215 80% 8%;
+
+    --destructive: 0 75% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 212 17% 85%;
+    --input: 212 17% 85%;
+    --ring: 25 100% 54%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 215 70% 14%;
+    --sidebar-primary: 214 74% 13%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 212 42% 94%;
+    --sidebar-accent-foreground: 215 70% 14%;
+    --sidebar-border: 212 17% 85%;
+    --sidebar-ring: 25 100% 54%;
+  }
+
+  .dark {
+    --background: 220 25% 8%;
+    --foreground: 216 30% 94%;
+
+    --card: 220 22% 11%;
+    --card-foreground: 216 30% 94%;
+
+    --popover: 220 22% 11%;
+    --popover-foreground: 216 30% 94%;
+
+    --primary: 220 70% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 216 30% 94%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 216 12% 64%;
+
+    --accent: 195 60% 65%;
+    --accent-foreground: 220 25% 8%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 36 30% 94%;
+
+    --border: 28 8% 22%;
+    --input: 28 8% 22%;
+    --ring: 220 70% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-feature-settings: "ss01", "ss02", "cv05", "cv11";
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Manrope', system-ui, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+}
+
+@keyframes wave-bar {
+  from { transform: scaleY(var(--bar-scale, 0.3)); }
+  to   { transform: scaleY(1); }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Fraunces', Georgia, serif;
+    font-optical-sizing: auto;
+    font-variation-settings: 'opsz' 144, 'SOFT' 50;
+    letter-spacing: -0.02em;
+  }
+
+  .font-sans-display {
+    font-family: 'Manrope', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .bg-blueprint {
+    background-image:
+      linear-gradient(hsl(var(--primary) / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--primary) / 0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 6px;
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 999px;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Subtle film grain to add warmth */
+  .grain::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+}
+
+@keyframes shimmer-slide {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes door-rise {
+  0% { transform: translateY(110%); }
+  100% { transform: translateY(0); }
+}
+
+.animate-door-rise {
+  animation: door-rise 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
