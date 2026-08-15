@@ -1,149 +1,9 @@
 import { Hono } from "hono";
 import sharp from "sharp";
+import { detectDoor, openaiVision } from "../door-detect";
 import { MANUFACTURERS, STYLES, SwapRequestFieldsSchema } from "../types";
 
 const garageRouter = new Hono();
-
-// Detect door width class, height class, and bounding box from a house photo.
-//
-// The bbox drives BOTH the inpainting mask and the final composite, so a wrong
-// box is worse than no box: the visualizer will faithfully paste a new door in
-// the wrong place.
-//
-// Two things were wrong with the original version of this function:
-//
-//  1. It ran `gpt-4o-mini` at `detail: "low"`, which downsamples the photo to a
-//     single 512px tile. That is not enough resolution to localise anything.
-//
-//  2. The prompt contained a fully-populated example object
-//     (`{"x":0.15,"y":0.30,"w":0.70,"h":0.55}`) and a second "default if unsure"
-//     object. Models copy concrete example values, and this one did — nearly
-//     every photo came back with x=0.15 y=0.30 w=0.70 h=0.55 regardless of where
-//     the door actually was.
-//
-// So: a model that can localise, full detail, a schema described by TYPE rather
-// than by example, and edge-by-edge questions (left/right/top/bottom) instead of
-// x/y/w/h — asking for a width is what invites confusing "width" with "right
-// edge". Nothing in the prompt is a number the model can lift verbatim.
-const DOOR_VISION_MODEL = process.env.DOOR_VISION_MODEL || "gpt-4o";
-
-const DOOR_PROMPT = [
-  "This is a photo of a house. Find the garage door.",
-  "",
-  "Locate its edges as fractions of the image, where 0,0 is the top-left corner",
-  "and 1,1 is the bottom-right corner. Answer each edge separately:",
-  "",
-  '  left   - how far across the image the door frame starts',
-  '  right  - how far across the image the door frame ends',
-  '  top    - how far down the image the top of the door frame sits',
-  '  bottom - how far down the image the door meets the driveway or ground',
-  "",
-  "Bound the door opening itself, including its surrounding trim, and nothing",
-  "more. Do not include the driveway, the roof, the walls beside it, or a second",
-  "garage door if there is one - use only the largest, most prominent door.",
-  "",
-  "Also classify the door:",
-  '  widthClass  - "single" for a one-car door, "double" for a two-car door',
-  '  heightClass - "standard" for a roughly 7ft door, "tall" for 8ft or more',
-  "",
-  "Reply with JSON only, no prose and no markdown fence, with exactly these keys:",
-  "widthClass, heightClass, left, right, top, bottom.",
-  "If no garage door is visible, set left, right, top and bottom to null.",
-].join("\n");
-
-// Reject boxes that cannot be a garage door. A box covering nearly the whole
-// frame means the model failed to localise, and using it would restore the old
-// behaviour where almost the entire photo was replaced by AI output.
-function validateDoorBox(
-  left: number,
-  right: number,
-  top: number,
-  bottom: number
-): { x: number; y: number; w: number; h: number } | undefined {
-  if (![left, right, top, bottom].every((v) => Number.isFinite(v))) return undefined;
-
-  const x1 = Math.max(0, Math.min(1, Math.min(left, right)));
-  const x2 = Math.max(0, Math.min(1, Math.max(left, right)));
-  const y1 = Math.max(0, Math.min(1, Math.min(top, bottom)));
-  const y2 = Math.max(0, Math.min(1, Math.max(top, bottom)));
-
-  const w = x2 - x1;
-  const h = y2 - y1;
-
-  if (w < 0.05 || h < 0.05) return undefined;   // too small to be a door
-  if (w > 0.98 && h > 0.98) return undefined;   // whole frame — not a detection
-  if (w * h > 0.85) return undefined;           // implausibly large
-  if (w / h > 8 || h / w > 8) return undefined; // a garage door is not a sliver
-
-  return { x: x1, y: y1, w, h };
-}
-
-async function analyzeDoorSize(
-  imageBase64: string,
-  openaiBase: string,
-  openaiKey: string
-): Promise<{
-  widthClass: "single" | "double";
-  heightClass: "standard" | "tall";
-  bbox?: { x: number; y: number; w: number; h: number };
-}> {
-  try {
-    const resp = await fetch(`${openaiBase}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: DOOR_VISION_MODEL,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image_url",
-                image_url: { url: `data:image/png;base64,${imageBase64}`, detail: "high" },
-              },
-              { type: "text", text: DOOR_PROMPT },
-            ],
-          },
-        ],
-        max_tokens: 200,
-        temperature: 0,
-      }),
-    });
-    if (!resp.ok) {
-      console.warn("[garage/analyze] vision call failed:", resp.status, await resp.text().catch(() => ""));
-      return { widthClass: "double", heightClass: "standard" };
-    }
-    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const raw = (json.choices?.[0]?.message?.content ?? "{}")
-      .trim()
-      .replace(/```json\n?|\n?```/g, "")
-      .trim();
-    const data = JSON.parse(raw) as Record<string, unknown>;
-
-    const bbox = validateDoorBox(
-      data.left as number,
-      data.right as number,
-      data.top as number,
-      data.bottom as number
-    );
-
-    if (!bbox) {
-      console.warn("[garage/analyze] no usable door box from vision:", raw.slice(0, 200));
-    }
-
-    return {
-      widthClass: (data.widthClass as string) === "single" ? "single" : "double",
-      heightClass: (data.heightClass as string) === "tall" ? "tall" : "standard",
-      bbox,
-    };
-  } catch {
-    return { widthClass: "double", heightClass: "standard" };
-  }
-}
 
 // Returns a precise panel layout description for the given style and detected door size.
 // This is injected into the AI generation prompt to ensure correct panel counts.
@@ -267,14 +127,12 @@ garageRouter.post("/detect", async (c) => {
   }
   const openaiBase = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
+  // Pass full resolution: detectDoor downscales for its own coarse pass but
+  // crops the refine pass from the original, where the door edges are sharp.
   const rawBuffer = Buffer.from(await image.arrayBuffer());
-  const processedBuffer = await sharp(rawBuffer)
-    .rotate()
-    .resize({ width: 768, height: 768, fit: "inside", withoutEnlargement: true })
-    .png()
-    .toBuffer();
+  const processedBuffer = await sharp(rawBuffer).rotate().png().toBuffer();
 
-  const doorSize = await analyzeDoorSize(processedBuffer.toString("base64"), openaiBase, openaiKey);
+  const doorSize = await detectDoor(processedBuffer, openaiVision(openaiBase, openaiKey));
   return c.json({ data: doorSize });
 });
 
@@ -371,7 +229,7 @@ garageRouter.post("/swap", async (c) => {
         .toBuffer();
       return new Blob([buf], { type: "image/png" });
     })(),
-    analyzeDoorSize(tempBuffer.toString("base64"), openaiBase, openaiKey),
+    detectDoor(tempBuffer, openaiVision(openaiBase, openaiKey)),
   ]);
 
   const layoutDesc = buildLayoutDesc(
