@@ -41,16 +41,47 @@
 #
 # 4. FREE-TIER HOURS ARE A WORKSPACE BUDGET, NOT A SERVICE ONE.
 #    Render gives 750 free instance-hours per calendar month across the whole
-#    workspace. Keeping this service warm 24/7 uses ~730 of them. It fits only
-#    while seemygd is the ONLY free service in the workspace. Add a second one
-#    and both will run out before the month does.
+#    workspace, not per service. Running warm 24/7 would use ~730 of those and
+#    leave ~20 hours of slack. Blowing that budget suspends the service, which
+#    turns a slow first visit into an outage — strictly worse than the stall
+#    this job exists to fix. So it runs during US daytime only, and the service
+#    is allowed to sleep overnight.
+#
+#    Both tenants are in Florida, so the window is chosen around Eastern time.
+#
+# 5. WHY A FIXED UTC WINDOW, AND WHAT IT REALLY COVERS.
+#    Cron here is UTC and has no notion of daylight saving, so a "9-to-5
+#    Eastern" schedule is not something this file can honestly express — the
+#    same UTC hours land an hour earlier in local time each winter. Rather than
+#    pretend otherwise, the window is fixed in UTC and chosen so that BOTH
+#    halves of the year are defensible:
+#
+#      12:00-03:00 UTC  =  08:00-23:00 Eastern in summer (EDT, UTC-4)
+#                       =  07:00-22:00 Eastern in winter (EST, UTC-5)
+#
+#    Fifteen hours a day either way. Summer skews toward the evening, winter
+#    toward the morning, and neither leaves consumer browsing hours uncovered.
+#    Nothing needs changing twice a year, and nothing silently drifts.
+#
+#    Cost: ~15h of pinging plus the ~15 minutes the instance stays up after the
+#    last one, so ~15.25 instance-hours a day. That is ~427 hours in a 28-day
+#    month and ~473 in a 31-day month — call it 465 typical, against a 750
+#    budget. Roughly 280 hours of headroom.
+#
+#    Accepted trade-off: a visitor arriving outside the window — after 11pm or
+#    before 8am Eastern in summer, an hour earlier in winter — hits a sleeping
+#    instance and waits the full 43-52 seconds. That is the price of not
+#    risking suspension, and overnight traffic on a garage-door visualiser is
+#    the cheapest traffic to lose.
 
 name: keep-warm
 
 on:
   schedule:
-    # Every 5 minutes — GitHub's minimum interval. See note 3 above.
-    - cron: "*/5 * * * *"
+    # Every 5 minutes (GitHub's minimum, see note 3), during 12:00-03:00 UTC
+    # only (see note 5). Hours 0-2 are the tail of the US evening, not the
+    # small hours of the morning — this window crosses midnight UTC.
+    - cron: "*/5 0-2,12-23 * * *"
   # So it can be run by hand from the Actions tab when debugging.
   workflow_dispatch:
 
