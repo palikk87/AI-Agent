@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import sharp from "sharp";
+import { DEBUG_SECRET_HEADER, resolveTraceMode } from "../debug-access";
 import { detectDoor, openaiVision } from "../door-detect";
 import { MANUFACTURERS, STYLES, SwapRequestFieldsSchema } from "../types";
 
@@ -133,11 +134,13 @@ garageRouter.post("/detect", async (c) => {
   const processedBuffer = await sharp(rawBuffer).rotate().png().toBuffer();
 
   // ?debug=1 returns what each pass saw and said; ?debug=images also returns the
-  // gridded PNGs. Diagnostic only — the normal response is unchanged.
-  const debug = c.req.query("debug");
-  const doorSize = await detectDoor(processedBuffer, openaiVision(openaiBase, openaiKey), {
-    trace: debug === "images" ? "images" : debug ? true : undefined,
-  });
+  // gridded PNGs — which are the customer's own photo of their house. Both are
+  // gated on a secret sent in the x-debug-secret header; without it this is an
+  // ordinary detection response carrying no trace and no images. See
+  // ../debug-access.ts for why the gate fails closed and reads a header rather
+  // than a query parameter.
+  const trace = resolveTraceMode(c.req.query("debug"), c.req.header(DEBUG_SECRET_HEADER));
+  const doorSize = await detectDoor(processedBuffer, openaiVision(openaiBase, openaiKey), { trace });
   return c.json({ data: doorSize });
 });
 

@@ -65,6 +65,14 @@ services:
       - key: OPENAI_API_KEY
         sync: false
 
+      # --- Diagnostics ---
+      # Gates the /api/garage/detect trace, which can return the gridded source
+      # images — the customer's own photo. Sent as the x-debug-secret header.
+      # sync:false so Render prompts once and no value lands in git. Leaving it
+      # unset disables the trace; the gate denies rather than defaults open.
+      - key: DEBUG_TRACE_SECRET
+        sync: false
+
       # --- Email (Resend) ---
       - key: RESEND_API_KEY
         sync: false
