@@ -14,7 +14,15 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter # 512MB — sharp + gpt-image-1 calls need more than free tier
+    # The service runs on free, and this line used to claim starter. That is a
+    # meaningful difference: free spins the instance down after ~15 minutes idle
+    # and the next request pays 43-52s to wake it (measured). The mismatch sent
+    # us looking for a caching bug that did not exist, because starter does not
+    # sleep and the symptom therefore "shouldn't" have been possible.
+    # .github/workflows/keepwarm.yml pings the service to stop it sleeping.
+    # If this is ever moved to a paid plan, update this line AND delete that
+    # workflow — it exists only to work around the free tier.
+    plan: free
     healthCheckPath: /health
     autoDeploy: true
 

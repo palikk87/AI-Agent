@@ -1,0 +1,114 @@
+# Keep the SeeMyGD service awake.
+#
+# WHY THIS EXISTS
+# The service runs on Render's free tier, which spins an instance down after
+# ~15 minutes without inbound traffic. Waking it costs 43-52 seconds, measured:
+# whichever request arrives first at a sleeping instance pays the whole thing.
+# In practice that is a visitor on a tenant site pressing "Visualize My Door"
+# and getting nothing for the better part of a minute. This job keeps traffic
+# flowing so that never happens.
+#
+# ---------------------------------------------------------------------------
+# THINGS THAT WILL SILENTLY BREAK THIS — read before assuming it is running
+# ---------------------------------------------------------------------------
+#
+# 1. SCHEDULED WORKFLOWS ONLY RUN FROM THE DEFAULT BRANCH.
+#    GitHub ignores `schedule:` on any other branch. This file does nothing at
+#    all until it is merged to main. If you are reading this on a feature
+#    branch wondering why the service still sleeps, that is why.
+#
+# 2. GITHUB DISABLES SCHEDULED WORKFLOWS AFTER 60 DAYS OF REPO INACTIVITY.
+#    No commits for 60 days and this job is switched off automatically, with no
+#    notification. The service then starts sleeping again and the first visitor
+#    of every quiet period waits ~45s. If the widget has "gone slow" and nobody
+#    changed anything, check the Actions tab first: the workflow will be listed
+#    as disabled, and a single commit plus re-enabling it brings it back.
+#
+# 3. CRON DRIFT AND DROPPED RUNS.
+#    GitHub's scheduler is best-effort. Runs are delayed under load and are
+#    sometimes skipped entirely. That is why the schedule is */5 rather than
+#    */10, and why each run pings several times rather than once:
+#
+#      */10 + one dropped run = a 20 minute gap  -> instance sleeps
+#      */5  + one dropped run = a 10 minute gap  -> instance survives
+#
+#    The in-run repetition below narrows it further: a dropped run leaves a gap
+#    of roughly 6 minutes rather than 10.
+#
+#    This costs nothing. Actions minutes are free on public repos, and Render
+#    bills instance-hours by how long the instance is awake (~730/month for
+#    24/7), not by how often it is pinged.
+#
+# 4. FREE-TIER HOURS ARE A WORKSPACE BUDGET, NOT A SERVICE ONE.
+#    Render gives 750 free instance-hours per calendar month across the whole
+#    workspace. Keeping this service warm 24/7 uses ~730 of them. It fits only
+#    while seemygd is the ONLY free service in the workspace. Add a second one
+#    and both will run out before the month does.
+
+name: keep-warm
+
+on:
+  schedule:
+    # Every 5 minutes — GitHub's minimum interval. See note 3 above.
+    - cron: "*/5 * * * *"
+  # So it can be run by hand from the Actions tab when debugging.
+  workflow_dispatch:
+
+# No repository access needed; this only makes outbound HTTP requests.
+permissions: {}
+
+concurrency:
+  group: keep-warm
+  # Never cancel an in-flight run: a cancelled run is a missed ping, which is
+  # the exact failure this job exists to prevent.
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Ping the service until the window is covered
+        # /health is the cheapest endpoint on the service: a static JSON literal
+        # with no database and no external calls. It runs in the same process
+        # that serves /embed.js and /v/<slug>, so waking it wakes those too —
+        # verified by measurement, not assumed.
+        #
+        # This step must never fail the workflow. A red check every five minutes
+        # is noise that trains everyone to ignore the Actions tab, and then a
+        # real failure goes unnoticed too. Outcomes are written to the run
+        # summary instead, where they can be read without shouting.
+        run: |
+          set -uo pipefail
+          URL="https://seemygd.onrender.com/health"
+          echo "### keep-warm $(date -u '+%Y-%m-%d %H:%M:%SZ')" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ping | http | ttfb | note |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+
+          for i in 1 2 3; do
+            # --max-time bounds a cold wake (~45s) plus headroom. || true so a
+            # 5xx, a timeout or a DNS blip cannot turn the check red.
+            out=$(curl -sS --max-time 90 -o /dev/null \
+                    -w '%{http_code} %{time_starttransfer}' "$URL" 2>/dev/null || echo "000 0")
+            code=$(echo "$out" | cut -d' ' -f1)
+            ttfb=$(echo "$out" | cut -d' ' -f2)
+
+            note="ok"
+            case "$code" in
+              000) note="unreachable — service down, or waking took >90s" ;;
+              5*)  note="server error — service is up but unhealthy" ;;
+              2*)  awk -v t="$ttfb" 'BEGIN { exit !(t > 5) }' && note="SLOW — instance had gone to sleep" ;;
+              *)   note="unexpected status" ;;
+            esac
+
+            echo "| $i | $code | ${ttfb}s | $note |" >> "$GITHUB_STEP_SUMMARY"
+            echo "ping $i: http=$code ttfb=${ttfb}s ($note)"
+
+            # Spread the pings across the 5-minute window so a dropped run
+            # leaves a smaller hole. No sleep after the last one.
+            [ "$i" -lt 3 ] && sleep 100
+          done
+
+          # Always succeed. The summary above carries the detail.
+          exit 0
