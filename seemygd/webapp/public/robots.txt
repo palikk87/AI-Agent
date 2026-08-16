@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://www.seemygd.com/sitemap.xml
+Sitemap: https://app.seemygd.com/sitemap.xml
