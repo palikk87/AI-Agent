@@ -11,6 +11,10 @@ const STATIC_TRUSTED_ORIGINS = [
   // SeeMyGD production.
   "https://seemygd.com",
   "https://www.seemygd.com",
+  // The app itself now lives on a subdomain, and the CORS allowlist in
+  // index.ts already trusts any *.seemygd.com. Match it here, or owner sign-in
+  // on the app host is rejected as an untrusted origin.
+  "https://*.seemygd.com",
   // Lovable hosting: published app + editor previews.
   "https://*.lovable.app",
   "https://*.lovableproject.com",
