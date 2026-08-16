@@ -28,7 +28,7 @@ const Index = () => {
         name: "SeeMyGD Garage Door Visualizer",
         applicationCategory: "DesignApplication",
         operatingSystem: "Web",
-        url: "https://www.seemygd.com/tool",
+        url: "https://app.seemygd.com/tool",
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         description:
           "Free AI tool that shows how a new garage door looks on a photo of your home.",
