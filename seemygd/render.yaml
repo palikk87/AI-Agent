@@ -27,8 +27,7 @@ services:
     autoDeploy: true
 
     domains:
-      - www.seemygd.com
-      - seemygd.com
+      - app.seemygd.com
 
     envVars:
       - key: NODE_ENV
@@ -39,9 +38,9 @@ services:
       # Public URL of this service. Square webhook signatures are verified
       # against this exact value, so it must match what Square is configured with.
       - key: BACKEND_URL
-        value: https://www.seemygd.com
+        value: https://app.seemygd.com
       - key: FRONTEND_URL
-        value: https://www.seemygd.com
+        value: https://app.seemygd.com
       - key: EXTRA_TRUSTED_ORIGINS
         sync: false
 
