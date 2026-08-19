@@ -6,6 +6,65 @@ import { MANUFACTURERS, STYLES, SwapRequestFieldsSchema } from "../types";
 
 const garageRouter = new Hono();
 
+/**
+ * How far outside the detected box the model may paint, as a fraction of the
+ * box's own size.
+ *
+ * This is deliberately loose, and the reason is worth keeping.
+ *
+ * The version of this tool everyone liked also sent a mask — but its detector
+ * copied the example box out of its own prompt on nearly every photo, so the
+ * mask was almost always the same generic rectangle covering ~63% of the
+ * image. It never actually constrained anything. The model was free to put the
+ * door where the door goes, and it did.
+ *
+ * Detection later became genuinely accurate, which quietly turned the same 5%
+ * padding into a real constraint for the first time. A masked model cannot
+ * paint outside its mask, so any error in a tight box stopped being a cosmetic
+ * crop and became a door squashed into the wrong rectangle. Tightening the
+ * leash is what broke placement.
+ *
+ * So: keep a mask, because a border of untouched photo stops the model
+ * reinventing the whole frame and keeps the diff below honest — but keep it
+ * loose enough that it is a hint about where to work, never a box the door has
+ * to fit inside.
+ */
+const MASK_PAD = 0.4;
+
+// Creates a mask PNG: opaque white everywhere except the door area (transparent).
+// Transparent pixels = AI may edit; opaque pixels = AI must preserve.
+async function createDoorMask(
+  width: number,
+  height: number,
+  bbox: { x: number; y: number; w: number; h: number }
+): Promise<Buffer> {
+  const padW = Math.round(bbox.w * width * MASK_PAD);
+  const padH = Math.round(bbox.h * height * MASK_PAD);
+  const doorX = Math.max(0, Math.round(bbox.x * width) - padW);
+  const doorY = Math.max(0, Math.round(bbox.y * height) - padH);
+  const doorW = Math.min(width - doorX, Math.round(bbox.w * width) + padW * 2);
+  const doorH = Math.min(height - doorY, Math.round(bbox.h * height) + padH * 2);
+
+  // Opaque white base = everything is preserved by default
+  const base = await sharp({
+    create: { width, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } },
+  })
+    .png()
+    .toBuffer();
+
+  // Transparent rectangle = the door area the AI is allowed to edit
+  const doorCutout = await sharp({
+    create: { width: doorW, height: doorH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .png()
+    .toBuffer();
+
+  return sharp(base)
+    .composite([{ input: doorCutout, left: doorX, top: doorY }])
+    .png()
+    .toBuffer();
+}
+
 // Returns a precise panel layout description for the given style and detected door size.
 // This is injected into the AI generation prompt to ensure correct panel counts.
 function buildLayoutDesc(
@@ -62,80 +121,6 @@ function buildLayoutDesc(
   const cols = single ? 2 : 4;
   const rows = tall ? 5 : 4;
   return `Door opening ~${wFt}ft wide × ~${hFt}ft tall. Exactly ${cols} wide raised long panels per row × ${rows} horizontal sections tall (${cols * rows} raised panels total).`;
-}
-
-/**
- * How far outside the detected box the door is allowed to live.
- *
- * detectDoor answers by picking cells on a 12x12 grid drawn over a crop that
- * runs ~1.7x the door's own width, so one cell is roughly 14% of the box and
- * every edge it reports can be half a cell out. Padding by less than that
- * quantisation error is what broke door placement: the mask became a rectangle
- * that did not contain the real opening, and a masked model cannot paint
- * outside its mask, so the door was drawn squashed into the wrong rectangle
- * rather than into the doorway.
- *
- * This is deliberately larger than the error it covers. Too loose costs a ring
- * of wall around the door coming from the AI; too tight costs the door landing
- * in the wrong place, which is the far worse failure.
- *
- * ONE constant, used by both the mask handed to the model and the region
- * composited back. They must never disagree: the model paints everywhere the
- * mask permits, so a composite that keeps less than the mask allowed discards
- * real door pixels and reveals a sliver of the OLD door around the new one.
- * That is exactly what a 5% mask against a 1.2% composite margin was doing.
- */
-export const DOOR_REGION_PAD = 0.14;
-
-/** The detected box grown by `pad` (a fraction of its own size), clamped to the frame. */
-export function padDoorBox(
-  bbox: { x: number; y: number; w: number; h: number },
-  pad = DOOR_REGION_PAD
-): { x: number; y: number; w: number; h: number } {
-  const padW = bbox.w * pad;
-  const padH = bbox.h * pad;
-  const x = Math.max(0, bbox.x - padW);
-  const y = Math.max(0, bbox.y - padH);
-  return {
-    x,
-    y,
-    w: Math.min(1 - x, bbox.w + padW * 2),
-    h: Math.min(1 - y, bbox.h + padH * 2),
-  };
-}
-
-// Creates a mask PNG: opaque white everywhere except the door area (transparent).
-// Transparent pixels = AI may edit; opaque pixels = AI must preserve.
-// `bbox` must already be padded by padDoorBox — the caller pads once so the
-// composite can reuse the identical rectangle.
-async function createDoorMask(
-  width: number,
-  height: number,
-  bbox: { x: number; y: number; w: number; h: number }
-): Promise<Buffer> {
-  const doorX = Math.max(0, Math.round(bbox.x * width));
-  const doorY = Math.max(0, Math.round(bbox.y * height));
-  const doorW = Math.min(width - doorX, Math.round(bbox.w * width));
-  const doorH = Math.min(height - doorY, Math.round(bbox.h * height));
-
-  // Opaque white base = everything is preserved by default
-  const base = await sharp({
-    create: { width, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } },
-  })
-    .png()
-    .toBuffer();
-
-  // Transparent rectangle = the door area the AI is allowed to edit
-  const doorCutout = await sharp({
-    create: { width: doorW, height: doorH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  })
-    .png()
-    .toBuffer();
-
-  return sharp(base)
-    .composite([{ input: doorCutout, left: doorX, top: doorY }])
-    .png()
-    .toBuffer();
 }
 
 garageRouter.get("/catalog", (c) => {
@@ -297,15 +282,12 @@ garageRouter.post("/swap", async (c) => {
   // If we have a door bbox, create the mask; otherwise skip (full image editable)
   let maskBlob: Blob | undefined;
   if (doorSize.bbox) {
-    // Pad first, in original-image space, then transform. The composite pads the
-    // same raw bbox by the same fraction, so both describe one physical region.
-    const padded = padDoorBox(doorSize.bbox);
     // Transform bbox from original image space to resultSize×resultSize padded space
     const bboxInResult = {
-      x: (padded.x * origW + padX) * scale,
-      y: (padded.y * origH + padY) * scale,
-      w: padded.w * origW * scale,
-      h: padded.h * origH * scale,
+      x: (doorSize.bbox.x * origW + padX) * scale,
+      y: (doorSize.bbox.y * origH + padY) * scale,
+      w: doorSize.bbox.w * origW * scale,
+      h: doorSize.bbox.h * origH * scale,
     };
     // Normalize back to fractions for createDoorMask
     const bboxNorm = {
@@ -446,73 +428,63 @@ garageRouter.post("/swap", async (c) => {
     // -----------------------------------------------------------------------
     // Composite the AI result back over the ORIGINAL photo.
     //
-    // gpt-image-1's /images/edits endpoint REGENERATES THE WHOLE IMAGE. Unlike
-    // classic inpainting it does not preserve pixels outside the mask — it
-    // re-renders the entire scene, altering sky, driveway, landscaping, roofline
-    // and trim. That is the "hallucinated surroundings" problem.
+    // gpt-image-1's /images/edits endpoint regenerates the whole frame, so the
+    // returned image carries the new door AND a subtly re-rendered sky,
+    // driveway, roofline and planting. Only the door is wanted.
     //
-    // The original implementation tried to recover by DIFFING original against
-    // AI output and taking the bounding box of everything that changed. That
-    // fails by construction: because the model changes the whole frame, the diff
-    // finds changes everywhere, the box balloons to nearly the full image, and
-    // essentially all of the hallucinated scene is kept.
+    // Find what changed and keep exactly that. The model draws the door where
+    // the door belongs — it can see the whole house — so the bounding box of
+    // changed pixels IS the door region, discovered rather than predicted.
     //
-    // Instead, use the door box we already detected for the mask. AI pixels
-    // strictly inside it, original pixels everywhere else — so hallucination
-    // outside the door is impossible rather than merely unlikely.
+    // This is the original approach, restored. It was replaced by clipping to a
+    // separately detected box, on the theory that a tighter bound would stop
+    // the surrounding hallucination. It did, and it also broke placement:
+    // bounding the edit to a guessed rectangle turned every error in that guess
+    // into a misplaced door rather than a stray cloud. Constraining the model
+    // made the result worse. Small invented detail in the surroundings is the
+    // accepted cost of the door landing in the doorway.
     //
-    // The region kept here is the SAME padded rectangle the mask cut out, via
-    // padDoorBox. It used to be the raw box plus a 1.2%-of-frame margin while
-    // the mask padded 5% of the box — on a 1024px frame with a half-width door
-    // the model was invited to paint ~26px past the box and only ~12px of that
-    // was kept. The discarded ring is new door, and what replaced it was the
-    // OLD door, which is why a sliver of the previous door showed around the
-    // new one. Keeping exactly what the mask permitted is not a tuning choice;
-    // the two must be the same rectangle or the seam is guaranteed.
+    // The boundary needs no feathering. The box is drawn exactly where the two
+    // images stop differing, so along its edge they agree to within
+    // DOOR_THRESHOLD and a hard cut is invisible. Feathering is only needed
+    // when the cut lands somewhere the two genuinely disagree.
     // -----------------------------------------------------------------------
-    const bb = doorSize.bbox;
-    if (bb) {
-      // Centre comes from the DETECTED door, not the padded region — it drives
-      // where the estimate card points, and padding is not part of the door.
-      doorCenterXPct = bb.x + bb.w / 2;
+    const DOOR_THRESHOLD = 45;
+    let x1 = rW, x2 = 0, y1 = rH, y2 = 0;
+    for (let y = 0; y < rH; y++) {
+      for (let x = 0; x < rW; x++) {
+        const i = (y * rW + x) * 4;
+        const diff = Math.max(
+          Math.abs((origPx[i] ?? 0) - (aiPx[i] ?? 0)),
+          Math.abs((origPx[i + 1] ?? 0) - (aiPx[i + 1] ?? 0)),
+          Math.abs((origPx[i + 2] ?? 0) - (aiPx[i + 2] ?? 0))
+        );
+        if (diff > DOOR_THRESHOLD) {
+          if (x < x1) x1 = x;
+          if (x > x2) x2 = x;
+          if (y < y1) y1 = y;
+          if (y > y2) y2 = y;
+        }
+      }
+    }
 
-      const region = padDoorBox(bb);
-      let x1 = Math.max(0, Math.round(region.x * rW));
-      let y1 = Math.max(0, Math.round(region.y * rH));
-      let x2 = Math.min(rW - 1, Math.round((region.x + region.w) * rW));
-      let y2 = Math.min(rH - 1, Math.round((region.y + region.h) * rH));
-
-      // Blend across a few pixels at the boundary. A hard cut leaves a visible
-      // rectangle outline wherever the AI's exposure differs from the photo's.
-      const feather = Math.max(2, Math.round(Math.min(rW, rH) * 0.006));
+    if (x1 < x2 && y1 < y2) {
+      doorCenterXPct = (x1 + x2) / 2 / rW;
+      const margin = Math.round(Math.min(rW, rH) * 0.015);
+      x1 = Math.max(0, x1 - margin);
+      y1 = Math.max(0, y1 - margin);
+      x2 = Math.min(rW - 1, x2 + margin);
+      y2 = Math.min(rH - 1, y2 + margin);
 
       const outPx = Buffer.alloc(rW * rH * 4);
       for (let y = 0; y < rH; y++) {
         for (let x = 0; x < rW; x++) {
           const i = (y * rW + x) * 4;
-
-          // How far inside the door box this pixel sits (negative = outside).
-          const edge = Math.min(x - x1, x2 - x, y - y1, y2 - y);
-
-          let alpha: number;
-          if (edge < 0) alpha = 0;                  // outside -> original only
-          else if (edge >= feather) alpha = 1;      // well inside -> AI only
-          else alpha = edge / feather;              // boundary -> blend
-
-          if (alpha <= 0) {
-            outPx[i] = origPx[i] ?? 0;
-            outPx[i + 1] = origPx[i + 1] ?? 0;
-            outPx[i + 2] = origPx[i + 2] ?? 0;
-          } else if (alpha >= 1) {
-            outPx[i] = aiPx[i] ?? 0;
-            outPx[i + 1] = aiPx[i + 1] ?? 0;
-            outPx[i + 2] = aiPx[i + 2] ?? 0;
-          } else {
-            const inv = 1 - alpha;
-            outPx[i] = Math.round((aiPx[i] ?? 0) * alpha + (origPx[i] ?? 0) * inv);
-            outPx[i + 1] = Math.round((aiPx[i + 1] ?? 0) * alpha + (origPx[i + 1] ?? 0) * inv);
-            outPx[i + 2] = Math.round((aiPx[i + 2] ?? 0) * alpha + (origPx[i + 2] ?? 0) * inv);
-          }
+          const inDoor = x >= x1 && x <= x2 && y >= y1 && y <= y2;
+          const src = inDoor ? aiPx : origPx;
+          outPx[i] = src[i] ?? 0;
+          outPx[i + 1] = src[i + 1] ?? 0;
+          outPx[i + 2] = src[i + 2] ?? 0;
           outPx[i + 3] = 255;
         }
       }
@@ -524,11 +496,6 @@ garageRouter.post("/swap", async (c) => {
         .toBuffer();
 
       imageBase64 = finalBuffer.toString("base64");
-    } else {
-      // No door box means we cannot bound the edit. Returning the raw AI image
-      // would hand back a re-rendered scene, so say so in the logs rather than
-      // guessing a region.
-      console.warn("[garage/swap] no door box detected; returning ungated AI result");
     }
   }
 
