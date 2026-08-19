@@ -1,5 +1,24 @@
 # Render blueprint for SeeMyGD.
 #
+# THIS FILE DOES NOT DECIDE WHICH BRANCH DEPLOYS. Read this before assuming it.
+#
+# There is no `branch:` key below, which reads as "tracks the default branch",
+# i.e. main. That is wrong. The Render dashboard pins the branch and the
+# dashboard wins over this blueprint. The service currently deploys from:
+#
+#     claude/seemygd-garage-door-tool-2dg3dw
+#
+# Settings > Build > Branch, in the Render dashboard, is the only source of
+# truth. Deploying means pushing to that branch. A merge to main builds
+# nothing, silently — no queued deploy, no error, no signal of any kind.
+#
+# main is deliberately ~7 commits behind the deploy branch and is expected to
+# stay that way. Do not "fix" this by repointing the service at main: main is
+# missing the app.seemygd.com cutover and "Trust any *.seemygd.com origin for
+# auth", so repointing rolls those back and breaks subdomain sign-in. If that
+# is ever wanted, merge the deploy branch into main FIRST, confirm the trees
+# match, and only then change the branch in the dashboard.
+#
 # In Render: New → Blueprint → pick this repo. Set the blueprint's root
 # directory to `seemygd`. Secrets are marked sync:false, so Render prompts for
 # them once instead of storing them in git.

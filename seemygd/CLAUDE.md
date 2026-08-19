@@ -52,8 +52,13 @@ This workspace contains a web app and backend server.
 
 <environment>
   Self-hosted. You DO manage git here: commit and push your own work.
-  Production is Render (Docker, autoDeploy from the tracked branch) with Supabase
-  Postgres and Supabase Storage. `render.yaml` is the blueprint.
+  Production is Render (Docker, autoDeploy on commit) with Supabase Postgres and
+  Supabase Storage. `render.yaml` is the blueprint.
+
+  The tracked branch is `claude/seemygd-garage-door-tool-2dg3dw`, NOT main.
+  Pushing to main deploys nothing and reports nothing. render.yaml pins no
+  branch, so it reads as though main ships — the dashboard overrides it. See the
+  comment at the top of render.yaml before changing anything about deploys.
 
   Hosts, which are not yet the same thing:
   - seemygd.com / www.seemygd.com — currently the Lovable landing page
