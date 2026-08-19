@@ -1,68 +1,75 @@
 import { Hono } from "hono";
 import sharp from "sharp";
-import { DEBUG_SECRET_HEADER, resolveTraceMode } from "../debug-access";
-import { detectDoor, openaiVision } from "../door-detect";
 import { MANUFACTURERS, STYLES, SwapRequestFieldsSchema } from "../types";
 
 const garageRouter = new Hono();
 
-/**
- * How far outside the detected box the model may paint, as a fraction of the
- * box's own size.
- *
- * This is deliberately loose, and the reason is worth keeping.
- *
- * The version of this tool everyone liked also sent a mask — but its detector
- * copied the example box out of its own prompt on nearly every photo, so the
- * mask was almost always the same generic rectangle covering ~63% of the
- * image. It never actually constrained anything. The model was free to put the
- * door where the door goes, and it did.
- *
- * Detection later became genuinely accurate, which quietly turned the same 5%
- * padding into a real constraint for the first time. A masked model cannot
- * paint outside its mask, so any error in a tight box stopped being a cosmetic
- * crop and became a door squashed into the wrong rectangle. Tightening the
- * leash is what broke placement.
- *
- * So: keep a mask, because a border of untouched photo stops the model
- * reinventing the whole frame and keeps the diff below honest — but keep it
- * loose enough that it is a hint about where to work, never a box the door has
- * to fit inside.
- */
-const MASK_PAD = 0.4;
+// Detect door width, height class, and bounding box from a house photo using GPT-4o-mini vision
+async function analyzeDoorSize(
+  imageBase64: string,
+  openaiBase: string,
+  openaiKey: string
+): Promise<{
+  widthClass: "single" | "double";
+  heightClass: "standard" | "tall";
+  bbox?: { x: number; y: number; w: number; h: number };
+}> {
+  try {
+    const resp = await fetch(`${openaiBase}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: `data:image/png;base64,${imageBase64}`, detail: "low" },
+              },
+              {
+                type: "text",
+                text: 'Look at the garage door opening in this house photo. Respond ONLY with valid JSON (no markdown): {"widthClass":"double","heightClass":"standard","bbox":{"x":0.15,"y":0.30,"w":0.70,"h":0.55}} — widthClass is "single" (~8-10ft) or "double" (~14-18ft); heightClass is "standard" (~7ft) or "tall" (~8ft+); bbox has the garage door opening bounding box where x/y is the top-left corner and w/h is the size, all as fractions of the image dimensions (0.0-1.0), generously including the full door frame and a small margin. Default to {"widthClass":"double","heightClass":"standard","bbox":{"x":0.1,"y":0.25,"w":0.8,"h":0.65}} if unsure.',
+              },
+            ],
+          },
+        ],
+        max_tokens: 120,
+        temperature: 0,
+      }),
+    });
+    if (!resp.ok) return { widthClass: "double", heightClass: "standard" };
+    const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const raw = (json.choices?.[0]?.message?.content ?? "{}").trim().replace(/```json\n?|\n?```/g, "").trim();
+    const data = JSON.parse(raw) as Record<string, unknown>;
 
-// Creates a mask PNG: opaque white everywhere except the door area (transparent).
-// Transparent pixels = AI may edit; opaque pixels = AI must preserve.
-async function createDoorMask(
-  width: number,
-  height: number,
-  bbox: { x: number; y: number; w: number; h: number }
-): Promise<Buffer> {
-  const padW = Math.round(bbox.w * width * MASK_PAD);
-  const padH = Math.round(bbox.h * height * MASK_PAD);
-  const doorX = Math.max(0, Math.round(bbox.x * width) - padW);
-  const doorY = Math.max(0, Math.round(bbox.y * height) - padH);
-  const doorW = Math.min(width - doorX, Math.round(bbox.w * width) + padW * 2);
-  const doorH = Math.min(height - doorY, Math.round(bbox.h * height) + padH * 2);
+    const bboxRaw = data.bbox as { x?: number; y?: number; w?: number; h?: number } | undefined;
+    let bbox: { x: number; y: number; w: number; h: number } | undefined;
+    if (
+      typeof bboxRaw?.x === "number" &&
+      typeof bboxRaw?.y === "number" &&
+      typeof bboxRaw?.w === "number" &&
+      typeof bboxRaw?.h === "number"
+    ) {
+      const x = Math.max(0, Math.min(0.9, bboxRaw.x));
+      const y = Math.max(0, Math.min(0.9, bboxRaw.y));
+      const w = Math.max(0.05, Math.min(1 - x, bboxRaw.w));
+      const h = Math.max(0.05, Math.min(1 - y, bboxRaw.h));
+      bbox = { x, y, w, h };
+    }
 
-  // Opaque white base = everything is preserved by default
-  const base = await sharp({
-    create: { width, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } },
-  })
-    .png()
-    .toBuffer();
-
-  // Transparent rectangle = the door area the AI is allowed to edit
-  const doorCutout = await sharp({
-    create: { width: doorW, height: doorH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  })
-    .png()
-    .toBuffer();
-
-  return sharp(base)
-    .composite([{ input: doorCutout, left: doorX, top: doorY }])
-    .png()
-    .toBuffer();
+    return {
+      widthClass: (data.widthClass as string) === "single" ? "single" : "double",
+      heightClass: (data.heightClass as string) === "tall" ? "tall" : "standard",
+      bbox,
+    };
+  } catch {
+    return { widthClass: "double", heightClass: "standard" };
+  }
 }
 
 // Returns a precise panel layout description for the given style and detected door size.
@@ -123,6 +130,41 @@ function buildLayoutDesc(
   return `Door opening ~${wFt}ft wide × ~${hFt}ft tall. Exactly ${cols} wide raised long panels per row × ${rows} horizontal sections tall (${cols * rows} raised panels total).`;
 }
 
+// Creates a mask PNG: opaque white everywhere except the door area (transparent).
+// Transparent pixels = AI may edit; opaque pixels = AI must preserve.
+async function createDoorMask(
+  width: number,
+  height: number,
+  bbox: { x: number; y: number; w: number; h: number }
+): Promise<Buffer> {
+  // Add 5% padding around the bbox for safety (in case bbox is slightly tight)
+  const padW = Math.round(bbox.w * width * 0.05);
+  const padH = Math.round(bbox.h * height * 0.05);
+  const doorX = Math.max(0, Math.round(bbox.x * width) - padW);
+  const doorY = Math.max(0, Math.round(bbox.y * height) - padH);
+  const doorW = Math.min(width - doorX, Math.round(bbox.w * width) + padW * 2);
+  const doorH = Math.min(height - doorY, Math.round(bbox.h * height) + padH * 2);
+
+  // Opaque white base = everything is preserved by default
+  const base = await sharp({
+    create: { width, height, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 255 } },
+  })
+    .png()
+    .toBuffer();
+
+  // Transparent rectangle = the door area the AI is allowed to edit
+  const doorCutout = await sharp({
+    create: { width: doorW, height: doorH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .png()
+    .toBuffer();
+
+  return sharp(base)
+    .composite([{ input: doorCutout, left: doorX, top: doorY }])
+    .png()
+    .toBuffer();
+}
+
 garageRouter.get("/catalog", (c) => {
   return c.json({
     data: {
@@ -152,19 +194,14 @@ garageRouter.post("/detect", async (c) => {
   }
   const openaiBase = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
-  // Pass full resolution: detectDoor downscales for its own coarse pass but
-  // crops the refine pass from the original, where the door edges are sharp.
   const rawBuffer = Buffer.from(await image.arrayBuffer());
-  const processedBuffer = await sharp(rawBuffer).rotate().png().toBuffer();
+  const processedBuffer = await sharp(rawBuffer)
+    .rotate()
+    .resize({ width: 768, height: 768, fit: "inside", withoutEnlargement: true })
+    .png()
+    .toBuffer();
 
-  // ?debug=1 returns what each pass saw and said; ?debug=images also returns the
-  // gridded PNGs — which are the customer's own photo of their house. Both are
-  // gated on a secret sent in the x-debug-secret header; without it this is an
-  // ordinary detection response carrying no trace and no images. See
-  // ../debug-access.ts for why the gate fails closed and reads a header rather
-  // than a query parameter.
-  const trace = resolveTraceMode(c.req.query("debug"), c.req.header(DEBUG_SECRET_HEADER));
-  const doorSize = await detectDoor(processedBuffer, openaiVision(openaiBase, openaiKey), { trace });
+  const doorSize = await analyzeDoorSize(processedBuffer.toString("base64"), openaiBase, openaiKey);
   return c.json({ data: doorSize });
 });
 
@@ -261,7 +298,7 @@ garageRouter.post("/swap", async (c) => {
         .toBuffer();
       return new Blob([buf], { type: "image/png" });
     })(),
-    detectDoor(tempBuffer, openaiVision(openaiBase, openaiKey)),
+    analyzeDoorSize(tempBuffer.toString("base64"), openaiBase, openaiKey),
   ]);
 
   const layoutDesc = buildLayoutDesc(
@@ -425,30 +462,6 @@ garageRouter.post("/swap", async (c) => {
     const origPx = origResizedBuffer.data;
     const aiPx = aiResizedBuffer.data;
 
-    // -----------------------------------------------------------------------
-    // Composite the AI result back over the ORIGINAL photo.
-    //
-    // gpt-image-1's /images/edits endpoint regenerates the whole frame, so the
-    // returned image carries the new door AND a subtly re-rendered sky,
-    // driveway, roofline and planting. Only the door is wanted.
-    //
-    // Find what changed and keep exactly that. The model draws the door where
-    // the door belongs — it can see the whole house — so the bounding box of
-    // changed pixels IS the door region, discovered rather than predicted.
-    //
-    // This is the original approach, restored. It was replaced by clipping to a
-    // separately detected box, on the theory that a tighter bound would stop
-    // the surrounding hallucination. It did, and it also broke placement:
-    // bounding the edit to a guessed rectangle turned every error in that guess
-    // into a misplaced door rather than a stray cloud. Constraining the model
-    // made the result worse. Small invented detail in the surroundings is the
-    // accepted cost of the door landing in the doorway.
-    //
-    // The boundary needs no feathering. The box is drawn exactly where the two
-    // images stop differing, so along its edge they agree to within
-    // DOOR_THRESHOLD and a hard cut is invisible. Feathering is only needed
-    // when the cut lands somewhere the two genuinely disagree.
-    // -----------------------------------------------------------------------
     const DOOR_THRESHOLD = 45;
     let x1 = rW, x2 = 0, y1 = rH, y2 = 0;
     for (let y = 0; y < rH; y++) {
