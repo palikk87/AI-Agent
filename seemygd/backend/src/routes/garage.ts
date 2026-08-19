@@ -64,20 +64,59 @@ function buildLayoutDesc(
   return `Door opening ~${wFt}ft wide × ~${hFt}ft tall. Exactly ${cols} wide raised long panels per row × ${rows} horizontal sections tall (${cols * rows} raised panels total).`;
 }
 
+/**
+ * How far outside the detected box the door is allowed to live.
+ *
+ * detectDoor answers by picking cells on a 12x12 grid drawn over a crop that
+ * runs ~1.7x the door's own width, so one cell is roughly 14% of the box and
+ * every edge it reports can be half a cell out. Padding by less than that
+ * quantisation error is what broke door placement: the mask became a rectangle
+ * that did not contain the real opening, and a masked model cannot paint
+ * outside its mask, so the door was drawn squashed into the wrong rectangle
+ * rather than into the doorway.
+ *
+ * This is deliberately larger than the error it covers. Too loose costs a ring
+ * of wall around the door coming from the AI; too tight costs the door landing
+ * in the wrong place, which is the far worse failure.
+ *
+ * ONE constant, used by both the mask handed to the model and the region
+ * composited back. They must never disagree: the model paints everywhere the
+ * mask permits, so a composite that keeps less than the mask allowed discards
+ * real door pixels and reveals a sliver of the OLD door around the new one.
+ * That is exactly what a 5% mask against a 1.2% composite margin was doing.
+ */
+export const DOOR_REGION_PAD = 0.14;
+
+/** The detected box grown by `pad` (a fraction of its own size), clamped to the frame. */
+export function padDoorBox(
+  bbox: { x: number; y: number; w: number; h: number },
+  pad = DOOR_REGION_PAD
+): { x: number; y: number; w: number; h: number } {
+  const padW = bbox.w * pad;
+  const padH = bbox.h * pad;
+  const x = Math.max(0, bbox.x - padW);
+  const y = Math.max(0, bbox.y - padH);
+  return {
+    x,
+    y,
+    w: Math.min(1 - x, bbox.w + padW * 2),
+    h: Math.min(1 - y, bbox.h + padH * 2),
+  };
+}
+
 // Creates a mask PNG: opaque white everywhere except the door area (transparent).
 // Transparent pixels = AI may edit; opaque pixels = AI must preserve.
+// `bbox` must already be padded by padDoorBox — the caller pads once so the
+// composite can reuse the identical rectangle.
 async function createDoorMask(
   width: number,
   height: number,
   bbox: { x: number; y: number; w: number; h: number }
 ): Promise<Buffer> {
-  // Add 5% padding around the bbox for safety (in case bbox is slightly tight)
-  const padW = Math.round(bbox.w * width * 0.05);
-  const padH = Math.round(bbox.h * height * 0.05);
-  const doorX = Math.max(0, Math.round(bbox.x * width) - padW);
-  const doorY = Math.max(0, Math.round(bbox.y * height) - padH);
-  const doorW = Math.min(width - doorX, Math.round(bbox.w * width) + padW * 2);
-  const doorH = Math.min(height - doorY, Math.round(bbox.h * height) + padH * 2);
+  const doorX = Math.max(0, Math.round(bbox.x * width));
+  const doorY = Math.max(0, Math.round(bbox.y * height));
+  const doorW = Math.min(width - doorX, Math.round(bbox.w * width));
+  const doorH = Math.min(height - doorY, Math.round(bbox.h * height));
 
   // Opaque white base = everything is preserved by default
   const base = await sharp({
@@ -258,12 +297,15 @@ garageRouter.post("/swap", async (c) => {
   // If we have a door bbox, create the mask; otherwise skip (full image editable)
   let maskBlob: Blob | undefined;
   if (doorSize.bbox) {
+    // Pad first, in original-image space, then transform. The composite pads the
+    // same raw bbox by the same fraction, so both describe one physical region.
+    const padded = padDoorBox(doorSize.bbox);
     // Transform bbox from original image space to resultSize×resultSize padded space
     const bboxInResult = {
-      x: (doorSize.bbox.x * origW + padX) * scale,
-      y: (doorSize.bbox.y * origH + padY) * scale,
-      w: doorSize.bbox.w * origW * scale,
-      h: doorSize.bbox.h * origH * scale,
+      x: (padded.x * origW + padX) * scale,
+      y: (padded.y * origH + padY) * scale,
+      w: padded.w * origW * scale,
+      h: padded.h * origH * scale,
     };
     // Normalize back to fractions for createDoorMask
     const bboxNorm = {
@@ -418,23 +460,27 @@ garageRouter.post("/swap", async (c) => {
     // Instead, use the door box we already detected for the mask. AI pixels
     // strictly inside it, original pixels everywhere else — so hallucination
     // outside the door is impossible rather than merely unlikely.
+    //
+    // The region kept here is the SAME padded rectangle the mask cut out, via
+    // padDoorBox. It used to be the raw box plus a 1.2%-of-frame margin while
+    // the mask padded 5% of the box — on a 1024px frame with a half-width door
+    // the model was invited to paint ~26px past the box and only ~12px of that
+    // was kept. The discarded ring is new door, and what replaced it was the
+    // OLD door, which is why a sliver of the previous door showed around the
+    // new one. Keeping exactly what the mask permitted is not a tuning choice;
+    // the two must be the same rectangle or the seam is guaranteed.
     // -----------------------------------------------------------------------
     const bb = doorSize.bbox;
     if (bb) {
-      let x1 = Math.round(bb.x * rW);
-      let y1 = Math.round(bb.y * rH);
-      let x2 = Math.round((bb.x + bb.w) * rW);
-      let y2 = Math.round((bb.y + bb.h) * rH);
+      // Centre comes from the DETECTED door, not the padded region — it drives
+      // where the estimate card points, and padding is not part of the door.
+      doorCenterXPct = bb.x + bb.w / 2;
 
-      doorCenterXPct = (x1 + x2) / 2 / rW;
-
-      // Small outward margin so trim and the shadow line at the door edge come
-      // along with the door rather than being cut off mid-detail.
-      const margin = Math.round(Math.min(rW, rH) * 0.012);
-      x1 = Math.max(0, x1 - margin);
-      y1 = Math.max(0, y1 - margin);
-      x2 = Math.min(rW - 1, x2 + margin);
-      y2 = Math.min(rH - 1, y2 + margin);
+      const region = padDoorBox(bb);
+      let x1 = Math.max(0, Math.round(region.x * rW));
+      let y1 = Math.max(0, Math.round(region.y * rH));
+      let x2 = Math.min(rW - 1, Math.round((region.x + region.w) * rW));
+      let y2 = Math.min(rH - 1, Math.round((region.y + region.h) * rH));
 
       // Blend across a few pixels at the boundary. A hard cut leaves a visible
       // rectangle outline wherever the AI's exposure differs from the photo's.
